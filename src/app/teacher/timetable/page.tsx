@@ -58,7 +58,8 @@ export default function TeacherTimetablePage() {
                 No teaching periods scheduled currently.
               </div>
             ) : (
-              <Table>
+              <div className="overflow-x-auto">
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Day</TableHead>
@@ -91,7 +92,8 @@ export default function TeacherTimetablePage() {
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>

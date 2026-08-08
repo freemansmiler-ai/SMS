@@ -180,7 +180,8 @@ export default function TeacherManagementPage() {
                 />
               </div>
             ) : (
-              <Table>
+              <div className="overflow-x-auto">
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[220px]">Teacher Name</TableHead>
@@ -300,7 +301,8 @@ export default function TeacherManagementPage() {
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>

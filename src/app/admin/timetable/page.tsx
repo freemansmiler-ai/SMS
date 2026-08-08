@@ -164,7 +164,8 @@ export default function AdminTimetablePage() {
                 <Skeleton className="h-10 w-full" />
               </div>
             ) : (
-              <Table>
+              <div className="overflow-x-auto">
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Day</TableHead>
@@ -218,7 +219,8 @@ export default function AdminTimetablePage() {
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>

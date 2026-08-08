@@ -241,7 +241,8 @@ export default function TeacherAttendancePage() {
                 No students enrolled in this class section.
               </div>
             ) : (
-              <Table>
+              <div className="overflow-x-auto">
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Student Name</TableHead>
@@ -326,7 +327,8 @@ export default function TeacherAttendancePage() {
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>

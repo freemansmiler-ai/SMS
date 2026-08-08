@@ -346,7 +346,8 @@ export default function TeacherResultsPage() {
                 No student marksheets found for this class section.
               </div>
             ) : (
-              <Table>
+              <div className="overflow-x-auto">
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[180px]">Student Name</TableHead>
@@ -443,7 +444,8 @@ export default function TeacherResultsPage() {
                     );
                   })}
                 </TableBody>
-              </Table>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>

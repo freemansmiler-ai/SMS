@@ -164,55 +164,57 @@ export default function PrincipalAttendancePage() {
                 <Skeleton className="h-10 w-full" />
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Class Section</TableHead>
-                    <TableHead>Enrolled Students</TableHead>
-                    <TableHead>Present Today</TableHead>
-                    <TableHead>Absent Today</TableHead>
-                    <TableHead>Attendance Rate</TableHead>
-                    <TableHead className="text-right">Performance</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data?.classBreakdown.map((item) => (
-                    <TableRow key={item.classId}>
-                      <TableCell className="font-bold text-xs text-slate-800 dark:text-slate-200">
-                        {item.className}
-                      </TableCell>
-                      <TableCell className="text-xs font-medium">
-                        {item.enrolledStudents} Students
-                      </TableCell>
-                      <TableCell className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                        {item.presentCount}
-                      </TableCell>
-                      <TableCell className="text-xs font-bold text-red-600 dark:text-red-400">
-                        {item.absentCount}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden max-w-[100px]">
-                            <div
-                              className="h-full bg-emerald-500 rounded-full"
-                              style={{ width: `${item.rate}%` }}
-                            />
-                          </div>
-                          <span className="text-xs font-bold">{item.rate}%</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Badge
-                          variant={item.rate >= 95 ? "success" : "warning"}
-                          className="text-[10px]"
-                        >
-                          {item.rate >= 95 ? "High Attendance" : "Satisfactory"}
-                        </Badge>
-                      </TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Class Section</TableHead>
+                      <TableHead>Enrolled Students</TableHead>
+                      <TableHead>Present Today</TableHead>
+                      <TableHead>Absent Today</TableHead>
+                      <TableHead>Attendance Rate</TableHead>
+                      <TableHead className="text-right">Performance</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {data?.classBreakdown.map((item) => (
+                      <TableRow key={item.classId}>
+                        <TableCell className="font-bold text-xs text-slate-800 dark:text-slate-200">
+                          {item.className}
+                        </TableCell>
+                        <TableCell className="text-xs font-medium">
+                          {item.enrolledStudents} Students
+                        </TableCell>
+                        <TableCell className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                          {item.presentCount}
+                        </TableCell>
+                        <TableCell className="text-xs font-bold text-red-600 dark:text-red-400">
+                          {item.absentCount}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden max-w-[100px]">
+                              <div
+                                className="h-full bg-emerald-500 rounded-full"
+                                style={{ width: `${item.rate}%` }}
+                              />
+                            </div>
+                            <span className="text-xs font-bold">{item.rate}%</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Badge
+                            variant={item.rate >= 95 ? "success" : "warning"}
+                            className="text-[10px]"
+                          >
+                            {item.rate >= 95 ? "High Attendance" : "Satisfactory"}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>

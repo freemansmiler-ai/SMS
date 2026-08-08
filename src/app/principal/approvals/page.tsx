@@ -165,7 +165,8 @@ export default function PrincipalApprovalsPage() {
                 />
               </div>
             ) : (
-              <Table>
+              <div className="overflow-x-auto">
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Subject & Code</TableHead>
@@ -235,7 +236,8 @@ export default function PrincipalApprovalsPage() {
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>

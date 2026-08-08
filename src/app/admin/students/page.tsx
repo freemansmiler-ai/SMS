@@ -174,109 +174,111 @@ export default function StudentManagementPage() {
                 />
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[220px]">Student Name</TableHead>
-                    <TableHead>Student Code</TableHead>
-                    <TableHead>Assigned Class</TableHead>
-                    <TableHead>Guardian Contact</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {students.map((student) => (
-                    <TableRow key={student.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2.5">
-                          <Avatar className="h-7 w-7 border border-slate-200 dark:border-slate-700">
-                            <AvatarImage src={student.avatarUrl} />
-                            <AvatarFallback className="text-[10px] font-bold bg-slate-100 dark:bg-slate-800">
-                              {student.firstName[0]}
-                              {student.lastName[0]}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex flex-col">
-                            <Link
-                              href={`/admin/students/${student.id}`}
-                              className="font-semibold text-xs text-slate-800 dark:text-slate-200 hover:underline"
-                            >
-                              {student.firstName} {student.lastName}
-                            </Link>
-                            <span className="text-[10px] text-slate-400">{student.email}</span>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-xs font-mono text-slate-600 dark:text-slate-400">
-                        {student.studentCode}
-                      </TableCell>
-                      <TableCell className="text-xs text-slate-700 dark:text-slate-300">
-                        {student.className || "Unassigned"}
-                      </TableCell>
-                      <TableCell className="text-xs text-slate-600 dark:text-slate-400">
-                        {student.guardianName ? (
-                          <div>
-                            <span className="font-medium block text-slate-800 dark:text-slate-200">
-                              {student.guardianName}
-                            </span>
-                            <span className="text-[10px] text-slate-400">
-                              {student.guardianContact || "No Phone"}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-slate-400">Not Provided</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={student.status === "active" ? "success" : "secondary"}
-                          className="capitalize text-[10px]"
-                        >
-                          {student.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400">
-                              <MoreHorizontal className="h-3.5 w-3.5" />
-                              <span className="sr-only">Actions</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-44">
-                            <DropdownMenuLabel className="text-[10px]">Student Actions</DropdownMenuLabel>
-                            <DropdownMenuItem asChild>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[220px]">Student Name</TableHead>
+                      <TableHead>Student Code</TableHead>
+                      <TableHead>Assigned Class</TableHead>
+                      <TableHead>Guardian Contact</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {students.map((student) => (
+                      <TableRow key={student.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2.5">
+                            <Avatar className="h-7 w-7 border border-slate-200 dark:border-slate-700">
+                              <AvatarImage src={student.avatarUrl} />
+                              <AvatarFallback className="text-[10px] font-bold bg-slate-100 dark:bg-slate-800">
+                                {student.firstName[0]}
+                                {student.lastName[0]}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex flex-col">
                               <Link
                                 href={`/admin/students/${student.id}`}
-                                className="text-xs gap-2 cursor-pointer flex items-center"
+                                className="font-semibold text-xs text-slate-800 dark:text-slate-200 hover:underline"
                               >
-                                <Eye className="h-3.5 w-3.5 text-slate-500" />
-                                <span>View Profile</span>
+                                {student.firstName} {student.lastName}
                               </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="text-xs gap-2 cursor-pointer"
-                              onClick={() => handleOpenEditModal(student)}
-                            >
-                              <Edit className="h-3.5 w-3.5 text-slate-500" />
-                              <span>Edit Record</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-xs gap-2 text-rose-600 focus:text-rose-600 dark:text-rose-400 cursor-pointer"
-                              onClick={() => setDeactivatingStudent(student)}
-                            >
-                              <UserX className="h-3.5 w-3.5" />
-                              <span>Deactivate Student</span>
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                              <span className="text-[10px] text-slate-400">{student.email}</span>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-xs font-mono text-slate-600 dark:text-slate-400">
+                          {student.studentCode}
+                        </TableCell>
+                        <TableCell className="text-xs text-slate-700 dark:text-slate-300">
+                          {student.className || "Unassigned"}
+                        </TableCell>
+                        <TableCell className="text-xs text-slate-600 dark:text-slate-400">
+                          {student.guardianName ? (
+                            <div>
+                              <span className="font-medium block text-slate-800 dark:text-slate-200">
+                                {student.guardianName}
+                              </span>
+                              <span className="text-[10px] text-slate-400">
+                                {student.guardianContact || "No Phone"}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400">Not Provided</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={student.status === "active" ? "success" : "secondary"}
+                            className="capitalize text-[10px]"
+                          >
+                            {student.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400">
+                                <MoreHorizontal className="h-3.5 w-3.5" />
+                                <span className="sr-only">Actions</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-44">
+                              <DropdownMenuLabel className="text-[10px]">Student Actions</DropdownMenuLabel>
+                              <DropdownMenuItem asChild>
+                                <Link
+                                  href={`/admin/students/${student.id}`}
+                                  className="text-xs gap-2 cursor-pointer flex items-center"
+                                >
+                                  <Eye className="h-3.5 w-3.5 text-slate-500" />
+                                  <span>View Profile</span>
+                                </Link>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-xs gap-2 cursor-pointer"
+                                onClick={() => handleOpenEditModal(student)}
+                              >
+                                <Edit className="h-3.5 w-3.5 text-slate-500" />
+                                <span>Edit Record</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-xs gap-2 text-rose-600 focus:text-rose-600 dark:text-rose-400 cursor-pointer"
+                                onClick={() => setDeactivatingStudent(student)}
+                              >
+                                <UserX className="h-3.5 w-3.5" />
+                                <span>Deactivate Student</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>

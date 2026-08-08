@@ -61,7 +61,8 @@ export default function StudentTimetablePage() {
                 No class timetable published yet.
               </div>
             ) : (
-              <Table>
+              <div className="overflow-x-auto">
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Day</TableHead>
@@ -98,7 +99,8 @@ export default function StudentTimetablePage() {
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>

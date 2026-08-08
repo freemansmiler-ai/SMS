@@ -272,7 +272,7 @@ export const OfficialReportCard: React.FC<OfficialReportCardProps> = ({ reportCa
         </div>
 
         {/* Subject Scores & WAEC Grades Table */}
-        <div>
+        <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", fontSize: "12px", borderCollapse: "collapse", border: "1px solid #0f172a" }}>
             <thead>
               <tr style={{ backgroundColor: "#0f172a", color: "#ffffff", fontWeight: 700, fontSize: "10px", textTransform: "uppercase" }}>

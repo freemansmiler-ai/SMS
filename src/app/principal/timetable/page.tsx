@@ -74,7 +74,8 @@ export default function PrincipalTimetablePage() {
                 <Skeleton className="h-10 w-full" />
               </div>
             ) : (
-              <Table>
+              <div className="overflow-x-auto">
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Day</TableHead>
@@ -105,7 +106,8 @@ export default function PrincipalTimetablePage() {
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>
