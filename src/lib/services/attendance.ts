@@ -1,4 +1,5 @@
 import { createBrowserClient, getSupabaseEnvConfig } from "@/lib/supabase";
+import { recordAuditLog } from "./audit-logs";
 
 export type AttendanceStatus = "present" | "absent" | "late" | "excused";
 
@@ -12,6 +13,8 @@ export interface StudentAttendanceItem {
   date: string;
   status: AttendanceStatus;
   remarks?: string;
+  academicYearId?: string;
+  termId?: string;
 }
 
 export interface AttendanceSummary {
@@ -42,7 +45,9 @@ export interface SchoolAttendanceAnalytics {
 
 export async function fetchClassAttendance(
   classId: string = "class-basic8a",
-  date: string = new Date().toISOString().split("T")[0]
+  date: string = new Date().toISOString().split("T")[0],
+  academicYearId?: string,
+  termId?: string
 ): Promise<StudentAttendanceItem[]> {
   const config = getSupabaseEnvConfig();
 
@@ -98,12 +103,17 @@ export async function fetchClassAttendance(
 
   const supabase = createBrowserClient();
   try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase.from("attendance") as any)
+    let query = (supabase.from("attendance") as any)
       .select(`
         id,
         student_id,
         class_id,
+        academic_year_id,
+        term_id,
         date,
         status,
         remarks,
@@ -116,6 +126,10 @@ export async function fetchClassAttendance(
       .eq("class_id", classId)
       .eq("date", date);
 
+    if (academicYearId) query = query.eq("academic_year_id", academicYearId);
+    if (termId) query = query.eq("term_id", termId);
+
+    const { data, error } = await query;
     if (error || !data) return [];
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -128,6 +142,8 @@ export async function fetchClassAttendance(
       studentCode: item.students?.student_code || "GES-STU",
       classId: item.class_id,
       className: item.classes?.name || "Basic Class",
+      academicYearId: item.academic_year_id,
+      termId: item.term_id,
       date: item.date,
       status: item.status || "present",
       remarks: item.remarks || "",
@@ -140,7 +156,9 @@ export async function fetchClassAttendance(
 export async function saveClassAttendance(
   classId: string,
   date: string,
-  records: Array<{ studentId: string; status: AttendanceStatus; remarks?: string }>
+  records: Array<{ studentId: string; status: AttendanceStatus; remarks?: string }>,
+  academicYearId?: string,
+  termId?: string
 ): Promise<{ success: boolean; error?: string }> {
   const config = getSupabaseEnvConfig();
   if (config.isPlaceholder || !config.isConfigured) {
@@ -149,20 +167,103 @@ export async function saveClassAttendance(
 
   const supabase = createBrowserClient();
   try {
+    // 1. Authenticate user & school scope
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Authentication required to record attendance." };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: profile } = await (supabase.from("profiles") as any)
+      .select("school_id, role")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile || profile.role !== "teacher") {
+      return { success: false, error: "UNAUTHORIZED: Only an assigned teacher can record class attendance." };
+    }
+
+    const schoolId = profile.school_id;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: teacherRec } = await (supabase.from("teachers") as any)
+      .select("id")
+      .eq("profile_id", user.id)
+      .eq("school_id", schoolId)
+      .single();
+
+    if (!teacherRec) {
+      return { success: false, error: "UNAUTHORIZED: Teacher record not found." };
+    }
+
+    // 2. Strict Class Authorization Check
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: assignment } = await (supabase.from("teacher_assignments") as any)
+      .select("id")
+      .eq("teacher_id", teacherRec.id)
+      .eq("class_id", classId)
+      .eq("school_id", schoolId)
+      .limit(1)
+      .maybeSingle();
+
+    // Also check class teacher
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: classRec } = await (supabase.from("classes") as any)
+      .select("id")
+      .eq("id", classId)
+      .eq("class_teacher_id", teacherRec.id)
+      .eq("school_id", schoolId)
+      .maybeSingle();
+
+    if (!assignment && !classRec) {
+      return {
+        success: false,
+        error: "AUTHORIZATION REJECTED: You are not assigned to manage attendance for this class section.",
+      };
+    }
+
+    // Determine current active academic year & term if omitted
+    let yearId = academicYearId;
+    let tId = termId;
+
+    if (!yearId || !tId) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: settings } = await (supabase.from("school_settings") as any)
+        .select("current_academic_year_id, current_term_id")
+        .eq("school_id", schoolId)
+        .single();
+
+      yearId = yearId || settings?.current_academic_year_id;
+      tId = tId || settings?.current_term_id;
+    }
+
+    // 3. Prepare payload for Supabase upsert
     const payload = records.map((r) => ({
+      school_id: schoolId,
       student_id: r.studentId,
       class_id: classId,
+      teacher_id: teacherRec.id,
+      academic_year_id: yearId || null,
+      term_id: tId || null,
       date,
       status: r.status,
       remarks: r.remarks || "",
+      recorded_by: user.id,
     }));
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase.from("attendance") as any).upsert(payload, {
-      onConflict: "student_id,date",
+      onConflict: "student_id,class_id,date",
     });
 
     if (error) return { success: false, error: error.message };
+
+    // Audit log
+    await recordAuditLog(
+      "ATTENDANCE_MODIFICATION",
+      "attendance",
+      classId,
+      `Teacher (${user.id}) recorded class attendance for class ${classId} on date ${date}`
+    );
+
     return { success: true };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Save attendance failed";

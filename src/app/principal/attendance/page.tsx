@@ -1,14 +1,17 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import {
-  fetchSchoolWideAttendanceAnalytics,
-  SchoolAttendanceAnalytics,
-} from "@/lib/services/attendance";
+  fetchPrincipalAttendanceAnalytics,
+  PrincipalAttendanceAnalyticsOverview,
+} from "@/lib/services/principal-attendance-analytics";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Table,
   TableBody,
@@ -22,193 +25,334 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
-  TrendingUp,
-  Building2,
+  FileText,
+  Filter,
+  RefreshCw,
+  AlertTriangle,
+  School,
+  UserCheck,
+  ShieldCheck,
+  BarChart3,
 } from "lucide-react";
 
-export default function PrincipalAttendancePage() {
-  const [data, setData] = useState<SchoolAttendanceAnalytics | null>(null);
+function PrincipalAttendanceContent() {
+  const [overview, setOverview] = useState<PrincipalAttendanceAnalyticsOverview | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
+  // Filters
+  const [classFilter, setClassFilter] = useState<string>("all");
+  const [teacherFilter, setTeacherFilter] = useState<string>("all");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+
+  const loadData = async () => {
+    setLoading(true);
+    const data = await fetchPrincipalAttendanceAnalytics({
+      classId: classFilter,
+      teacherId: teacherFilter,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+    });
+    setOverview(data);
+    setLoading(false);
+  };
+
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      const res = await fetchSchoolWideAttendanceAnalytics();
-      setData(res);
-      setLoading(false);
-    };
-    load();
-  }, []);
+    loadData();
+  }, [classFilter, teacherFilter, startDate, endDate]);
+
+  if (loading) {
+    return (
+      <div className="space-y-5">
+        <Skeleton className="h-28 w-full" />
+        <div className="grid grid-cols-4 gap-4">
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
+        </div>
+        <Skeleton className="h-48 w-full" />
+      </div>
+    );
+  }
+
+  const metrics = overview?.metrics;
 
   return (
-    <DashboardShell
-      role="principal"
-      breadcrumbs={[
-        { label: "Executive Dashboard", href: "/principal" },
-        { label: "Attendance Analytics" },
-      ]}
-    >
-      <div className="space-y-5">
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-50 flex items-center gap-2">
             <CalendarCheck className="h-5 w-5 text-slate-700 dark:text-slate-300" />
-            <span>School-Wide Attendance Analytics</span>
+            <span>School Attendance Analytics & Activity</span>
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Headmaster executive overview of daily student roll calls across all class divisions.
+            Executive roll call analytics, attendance rates, absence/late trends, and administrative recording activity.
           </p>
         </div>
 
-        {/* Core Metrics Grid */}
-        <div className="grid gap-4 sm:grid-cols-4">
-          <Card className="border-slate-200/80 dark:border-slate-800">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-2">
-              <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                School Average
-              </CardTitle>
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                <TrendingUp className="h-4 w-4" />
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 pt-0 space-y-1">
-              {loading ? (
-                <Skeleton className="h-8 w-20" />
-              ) : (
-                <div className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
-                  {data?.overallAttendanceRate}%
-                </div>
-              )}
-              <p className="text-[11px] text-slate-500 font-medium">Term 1 Daily Roll Call Average</p>
-            </CardContent>
-          </Card>
+        <Button variant="outline" size="sm" onClick={loadData} className="h-8 text-xs gap-1 self-start sm:self-auto">
+          <RefreshCw className="h-3 w-3" />
+          Refresh Analytics
+        </Button>
+      </div>
 
-          <Card className="border-slate-200/80 dark:border-slate-800">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-2">
-              <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                Present Today
-              </CardTitle>
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                <CheckCircle2 className="h-4 w-4" />
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 pt-0 space-y-1">
-              {loading ? (
-                <Skeleton className="h-8 w-20" />
-              ) : (
-                <div className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
-                  {data?.totalStudentsPresentToday}
-                </div>
-              )}
-              <p className="text-[11px] text-slate-500 font-medium">Students in Class</p>
-            </CardContent>
-          </Card>
+      {/* Scope & Date Filter Bar */}
+      <Card className="border-slate-200/80 dark:border-slate-800">
+        <CardContent className="p-3 sm:p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+            <div className="flex items-center gap-1.5 text-xs">
+              <Filter className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+              <span className="font-semibold text-slate-600 dark:text-slate-400">Class Section:</span>
+              <select
+                value={classFilter}
+                onChange={(e) => setClassFilter(e.target.value)}
+                className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold shadow-2xs dark:border-slate-800 dark:bg-slate-900 text-slate-800 dark:text-slate-200"
+              >
+                <option value="all">All School Classes</option>
+                <option value="class-basic7a">Basic 7 - Section A</option>
+                <option value="class-basic8a">Basic 8 - Section A</option>
+                <option value="class-basic9b">Basic 9 - Section B</option>
+              </select>
+            </div>
 
-          <Card className="border-slate-200/80 dark:border-slate-800">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-2">
-              <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                Absent Today
-              </CardTitle>
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-red-50 text-red-700 dark:bg-red-900/40 dark:text-red-300">
-                <XCircle className="h-4 w-4" />
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 pt-0 space-y-1">
-              {loading ? (
-                <Skeleton className="h-8 w-20" />
-              ) : (
-                <div className="text-2xl font-bold tracking-tight text-red-600 dark:text-red-400">
-                  {data?.totalStudentsAbsentToday}
-                </div>
-              )}
-              <p className="text-[11px] text-slate-500 font-medium">Unexcused Absences</p>
-            </CardContent>
-          </Card>
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="font-semibold text-slate-600 dark:text-slate-400">Date Range:</span>
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="h-8 text-xs w-32"
+                placeholder="Start Date"
+              />
+              <span className="text-slate-400 text-xs">to</span>
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="h-8 text-xs w-32"
+                placeholder="End Date"
+              />
+            </div>
+          </div>
 
-          <Card className="border-slate-200/80 dark:border-slate-800">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-2">
-              <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                Late Arrivals
-              </CardTitle>
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-                <Clock className="h-4 w-4" />
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 pt-0 space-y-1">
-              {loading ? (
-                <Skeleton className="h-8 w-20" />
-              ) : (
-                <div className="text-2xl font-bold tracking-tight text-amber-600 dark:text-amber-400">
-                  {data?.totalStudentsLateToday}
-                </div>
-              )}
-              <p className="text-[11px] text-slate-500 font-medium">Arrived after roll call</p>
-            </CardContent>
-          </Card>
-        </div>
+          <Badge variant="outline" className="text-xs font-mono font-bold shrink-0">
+            Session: {overview?.academicYearName} ({overview?.termName})
+          </Badge>
+        </CardContent>
+      </Card>
 
-        {/* Class Section Breakdown Table */}
+      {/* Metrics Summary Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <Card className="border-slate-200/80 dark:border-slate-800">
+          <CardContent className="p-3">
+            <p className="text-[10px] font-bold text-slate-500 uppercase">Overall Attendance</p>
+            <p className="text-2xl font-extrabold text-slate-900 dark:text-slate-50 mt-0.5">
+              {metrics?.attendanceRate || 0}%
+            </p>
+            <p className="text-[11px] text-slate-500 font-medium">
+              {metrics?.totalRecords || 0} Total Sessions
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200/80 dark:border-slate-800">
+          <CardContent className="p-3">
+            <p className="text-[10px] font-bold text-emerald-600 uppercase">Present</p>
+            <p className="text-2xl font-extrabold text-emerald-600 mt-0.5">
+              {metrics?.presentCount || 0}
+            </p>
+            <p className="text-[11px] text-emerald-700 font-medium">Recorded Present</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200/80 dark:border-slate-800">
+          <CardContent className="p-3">
+            <p className="text-[10px] font-bold text-amber-600 uppercase">Late Arrivals</p>
+            <p className="text-2xl font-extrabold text-amber-600 mt-0.5">
+              {metrics?.lateCount || 0}
+            </p>
+            <p className="text-[11px] text-amber-700 font-medium">{metrics?.lateRate || 0}% Late Rate</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200/80 dark:border-slate-800">
+          <CardContent className="p-3">
+            <p className="text-[10px] font-bold text-rose-600 uppercase">Absences</p>
+            <p className="text-2xl font-extrabold text-rose-600 mt-0.5">
+              {metrics?.absentCount || 0}
+            </p>
+            <p className="text-[11px] text-rose-700 font-medium">{metrics?.absenceRate || 0}% Absence Rate</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200/80 dark:border-slate-800 col-span-2 sm:col-span-1">
+          <CardContent className="p-3">
+            <p className="text-[10px] font-bold text-blue-600 uppercase">Excused Absence</p>
+            <p className="text-2xl font-extrabold text-blue-600 mt-0.5">
+              {metrics?.excusedCount || 0}
+            </p>
+            <p className="text-[11px] text-blue-700 font-medium">Medical/Permitted</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Class Attendance Breakdown */}
+      <Card className="border-slate-200/80 dark:border-slate-800">
+        <CardHeader className="p-4 pb-3">
+          <CardTitle className="text-sm font-bold flex items-center gap-2">
+            <School className="h-4 w-4 text-slate-500" />
+            <span>Class Section Attendance Breakdown</span>
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Comparison of roll call rates, presence, lateness, and absence across active classes.
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent className="p-0">
+          {overview?.classBreakdown.length === 0 ? (
+            <div className="p-8">
+              <EmptyState title="No Attendance Records" description="No roll call entries found for the selected filter scope." />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Class Section</TableHead>
+                    <TableHead>Grade Level</TableHead>
+                    <TableHead>Enrolled Students</TableHead>
+                    <TableHead>Total Sessions</TableHead>
+                    <TableHead>Present</TableHead>
+                    <TableHead>Late</TableHead>
+                    <TableHead>Absent</TableHead>
+                    <TableHead>Excused</TableHead>
+                    <TableHead>Attendance Rate</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {overview?.classBreakdown.map((c) => (
+                    <TableRow key={c.classId}>
+                      <TableCell className="font-bold text-xs text-slate-800 dark:text-slate-200">
+                        {c.className}
+                      </TableCell>
+                      <TableCell className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                        {c.gradeLevel}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs font-bold text-slate-900 dark:text-slate-100">
+                        {c.enrolledStudents}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-slate-500">{c.totalRecords}</TableCell>
+                      <TableCell className="font-mono text-xs font-semibold text-emerald-600">{c.presentCount}</TableCell>
+                      <TableCell className="font-mono text-xs font-semibold text-amber-600">{c.lateCount}</TableCell>
+                      <TableCell className="font-mono text-xs font-semibold text-rose-600">{c.absentCount}</TableCell>
+                      <TableCell className="font-mono text-xs font-semibold text-blue-600">{c.excusedCount}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="font-mono text-xs font-bold text-emerald-700 border-emerald-300">
+                          {c.attendanceRate}%
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Student Attendance Attention & Teacher Activity Grid */}
+      <div className="grid gap-5 lg:grid-cols-2">
+        {/* Students Requiring Attendance Attention */}
         <Card className="border-slate-200/80 dark:border-slate-800">
           <CardHeader className="p-4 pb-3">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-slate-700 dark:text-slate-300" />
-              <span>Attendance Rate by Class Division</span>
+            <CardTitle className="text-sm font-bold flex items-center gap-2 text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <span>Students Requiring Attendance Attention</span>
             </CardTitle>
             <CardDescription className="text-xs">
-              Daily roll call breakdown for Basic and Senior High School sections.
+              Students with attendance rates below 85% or repeated unexcused absences.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 pt-0 space-y-2.5">
+            {overview?.studentAttentionList.length === 0 ? (
+              <p className="text-xs text-slate-500 py-4 text-center">
+                All students currently meet attendance threshold guidelines.
+              </p>
+            ) : (
+              overview?.studentAttentionList.map((st) => (
+                <div
+                  key={st.studentId}
+                  className="p-3 rounded-lg bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900 flex items-center justify-between text-xs"
+                >
+                  <div>
+                    <span className="font-bold text-slate-900 dark:text-slate-50 block">
+                      {st.studentName}
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-mono">
+                      {st.studentCode} • {st.className}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-extrabold text-amber-700 dark:text-amber-400 text-sm block">
+                      {st.attendanceRate}% Rate
+                    </span>
+                    <span className="text-[10px] text-rose-600 font-bold">
+                      {st.absentCount} Absences ({st.lateCount} Late)
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Teacher Attendance Recording Activity */}
+        <Card className="border-slate-200/80 dark:border-slate-800">
+          <CardHeader className="p-4 pb-3">
+            <CardTitle className="text-sm font-bold flex items-center gap-2">
+              <UserCheck className="h-4 w-4 text-slate-500" />
+              <span>Attendance Recording Activity</span>
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Administrative tracking of daily roll call register entries submitted by faculty.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
-            {loading ? (
-              <div className="p-4 space-y-3">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-              </div>
+            {overview?.teacherActivityList.length === 0 ? (
+              <p className="text-xs text-slate-500 p-6 text-center">
+                No teacher attendance activity records logged.
+              </p>
             ) : (
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Class Section</TableHead>
-                      <TableHead>Enrolled Students</TableHead>
-                      <TableHead>Present Today</TableHead>
-                      <TableHead>Absent Today</TableHead>
-                      <TableHead>Attendance Rate</TableHead>
-                      <TableHead className="text-right">Performance</TableHead>
+                      <TableHead>Teacher Name</TableHead>
+                      <TableHead>Department</TableHead>
+                      <TableHead>Classes Covered</TableHead>
+                      <TableHead>Sessions Logged</TableHead>
+                      <TableHead>Last Entry</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {data?.classBreakdown.map((item) => (
-                      <TableRow key={item.classId}>
+                    {overview?.teacherActivityList.map((t) => (
+                      <TableRow key={t.teacherId}>
                         <TableCell className="font-bold text-xs text-slate-800 dark:text-slate-200">
-                          {item.className}
+                          {t.teacherName}
+                        </TableCell>
+                        <TableCell className="text-xs text-slate-600 dark:text-slate-400">
+                          {t.department}
                         </TableCell>
                         <TableCell className="text-xs font-medium">
-                          {item.enrolledStudents} Students
+                          {t.classesCovered} Classes
                         </TableCell>
-                        <TableCell className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                          {item.presentCount}
+                        <TableCell className="text-xs font-mono font-bold text-emerald-600">
+                          {t.sessionsRecorded} Sessions
                         </TableCell>
-                        <TableCell className="text-xs font-bold text-red-600 dark:text-red-400">
-                          {item.absentCount}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden max-w-[100px]">
-                              <div
-                                className="h-full bg-emerald-500 rounded-full"
-                                style={{ width: `${item.rate}%` }}
-                              />
-                            </div>
-                            <span className="text-xs font-bold">{item.rate}%</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Badge
-                            variant={item.rate >= 95 ? "success" : "warning"}
-                            className="text-[10px]"
-                          >
-                            {item.rate >= 95 ? "High Attendance" : "Satisfactory"}
-                          </Badge>
+                        <TableCell className="text-xs font-mono text-slate-500">
+                          {t.lastRecordingDate}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -219,6 +363,22 @@ export default function PrincipalAttendancePage() {
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+export default function PrincipalAttendanceAnalyticsPage() {
+  return (
+    <DashboardShell
+      role="principal"
+      breadcrumbs={[
+        { label: "Executive Dashboard", href: "/principal" },
+        { label: "Attendance Analytics" },
+      ]}
+    >
+      <Suspense fallback={<Skeleton className="h-48 w-full" />}>
+        <PrincipalAttendanceContent />
+      </Suspense>
     </DashboardShell>
   );
 }

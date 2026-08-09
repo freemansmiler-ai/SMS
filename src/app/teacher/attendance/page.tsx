@@ -8,12 +8,17 @@ import {
   StudentAttendanceItem,
   AttendanceStatus,
 } from "@/lib/services/attendance";
+import {
+  fetchTeacherAuthorizedAssignments,
+  TeacherAuthorizedAssignment,
+} from "@/lib/services/teacher-dashboard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Table,
   TableBody,
@@ -27,15 +32,16 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
-  FileText,
   Save,
   Calendar,
   AlertCircle,
   BookOpen,
+  Users,
 } from "lucide-react";
 
 export default function TeacherAttendancePage() {
-  const [selectedClassId, setSelectedClassId] = useState<string>("class-basic8a");
+  const [assignments, setAssignments] = useState<TeacherAuthorizedAssignment[]>([]);
+  const [selectedClassId, setSelectedClassId] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toISOString().split("T")[0]
   );
@@ -45,16 +51,43 @@ export default function TeacherAttendancePage() {
   const [saving, setSaving] = useState<boolean>(false);
   const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  // Load teacher assigned classes
+  useEffect(() => {
+    const loadAssignments = async () => {
+      const asgns = await fetchTeacherAuthorizedAssignments();
+      setAssignments(asgns);
+      if (asgns.length > 0) {
+        setSelectedClassId(asgns[0].classId);
+      }
+    };
+    loadAssignments();
+  }, []);
+
+  // Compute unique classes list from authorized assignments
+  const classOptions = Array.from(
+    new Map(assignments.map((a) => [a.classId, { id: a.classId, name: a.className }])).values()
+  );
+
+  const currentAssignment = assignments.find((a) => a.classId === selectedClassId) || assignments[0];
+
   const loadRoster = async () => {
+    if (!selectedClassId) return;
     setLoading(true);
     setMsg(null);
-    const data = await fetchClassAttendance(selectedClassId, selectedDate);
+    const data = await fetchClassAttendance(
+      selectedClassId,
+      selectedDate,
+      currentAssignment?.academicYearId,
+      currentAssignment?.termId
+    );
     setRoster(data);
     setLoading(false);
   };
 
   useEffect(() => {
-    loadRoster();
+    if (selectedClassId) {
+      loadRoster();
+    }
   }, [selectedClassId, selectedDate]);
 
   const handleStatusChange = (studentId: string, status: AttendanceStatus) => {
@@ -74,15 +107,23 @@ export default function TeacherAttendancePage() {
   };
 
   const handleSave = async () => {
+    if (!selectedClassId) return;
     setSaving(true);
     setMsg(null);
+
     const records = roster.map((r) => ({
       studentId: r.studentId,
       status: r.status,
       remarks: r.remarks,
     }));
 
-    const res = await saveClassAttendance(selectedClassId, selectedDate, records);
+    const res = await saveClassAttendance(
+      selectedClassId,
+      selectedDate,
+      records,
+      currentAssignment?.academicYearId,
+      currentAssignment?.termId
+    );
     setSaving(false);
 
     if (!res.success) {
@@ -93,7 +134,7 @@ export default function TeacherAttendancePage() {
     setMsg({ type: "success", text: `Daily attendance for ${selectedDate} saved successfully.` });
   };
 
-  // Automated Percentage Calculations
+  // Summary Metrics
   const total = roster.length;
   const presentCount = roster.filter((r) => r.status === "present").length;
   const lateCount = roster.filter((r) => r.status === "late").length;
@@ -119,15 +160,15 @@ export default function TeacherAttendancePage() {
               <span>Daily Class Attendance Register</span>
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Record roll call status for students in your assigned class sections.
+              Record roll call status for students in your authorized assigned class sections.
             </p>
           </div>
 
           <Button
             size="sm"
             onClick={handleSave}
-            disabled={saving || loading}
-            className="gap-1.5 font-semibold text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+            disabled={saving || loading || roster.length === 0}
+            className="gap-1.5 font-semibold text-xs bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
           >
             <Save className="h-3.5 w-3.5" />
             <span>{saving ? "Saving..." : "Save Attendance"}</span>
@@ -156,8 +197,11 @@ export default function TeacherAttendancePage() {
                   onChange={(e) => setSelectedClassId(e.target.value)}
                   className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold shadow-2xs dark:border-slate-800 dark:bg-slate-900 text-slate-800 dark:text-slate-200"
                 >
-                  <option value="class-basic8a">Basic 8 - Section A</option>
-                  <option value="class-basic9b">Basic 9 - Section B</option>
+                  {classOptions.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -198,135 +242,150 @@ export default function TeacherAttendancePage() {
           </CardContent>
         </Card>
 
-        {/* Automated Calculated Summary Stats */}
+        {/* Real-time Summary Analytics */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-          <div className="p-3 rounded-lg bg-slate-900 text-white space-y-0.5">
-            <span className="text-[10px] text-slate-300 font-semibold uppercase block">Attendance Rate</span>
-            <span className="text-xl font-extrabold text-emerald-400">{attendanceRate}%</span>
-          </div>
-          <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-800 space-y-0.5">
-            <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold uppercase block">Present</span>
-            <span className="text-lg font-bold text-emerald-800 dark:text-emerald-200">{presentCount} Students</span>
-          </div>
-          <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200/60 dark:border-red-800 space-y-0.5">
-            <span className="text-[10px] text-red-700 dark:text-red-400 font-semibold uppercase block">Absent</span>
-            <span className="text-lg font-bold text-red-800 dark:text-red-200">{absentCount} Students</span>
-          </div>
-          <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200/60 dark:border-amber-800 space-y-0.5">
-            <span className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold uppercase block">Late</span>
-            <span className="text-lg font-bold text-amber-800 dark:text-amber-200">{lateCount} Students</span>
-          </div>
-          <div className="p-3 rounded-lg bg-purple-50 dark:bg-purple-950/40 border border-purple-200/60 dark:border-purple-800 space-y-0.5">
-            <span className="text-[10px] text-purple-700 dark:text-purple-400 font-semibold uppercase block">Excused</span>
-            <span className="text-lg font-bold text-purple-800 dark:text-purple-200">{excusedCount} Students</span>
-          </div>
+          <Card className="border-slate-200/80 dark:border-slate-800">
+            <CardContent className="p-3">
+              <p className="text-[10px] font-bold text-slate-400 uppercase">Enrolled Students</p>
+              <p className="text-xl font-bold text-slate-900 dark:text-slate-50 mt-0.5">{total}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-slate-200/80 dark:border-slate-800">
+            <CardContent className="p-3">
+              <p className="text-[10px] font-bold text-emerald-600 uppercase">Present</p>
+              <p className="text-xl font-bold text-emerald-600 mt-0.5">{presentCount}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-slate-200/80 dark:border-slate-800">
+            <CardContent className="p-3">
+              <p className="text-[10px] font-bold text-amber-600 uppercase">Late</p>
+              <p className="text-xl font-bold text-amber-600 mt-0.5">{lateCount}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-slate-200/80 dark:border-slate-800">
+            <CardContent className="p-3">
+              <p className="text-[10px] font-bold text-rose-600 uppercase">Absent</p>
+              <p className="text-xl font-bold text-rose-600 mt-0.5">{absentCount}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-slate-200/80 dark:border-slate-800 col-span-2 sm:col-span-1">
+            <CardContent className="p-3">
+              <p className="text-[10px] font-bold text-blue-600 uppercase">Excused</p>
+              <p className="text-xl font-bold text-blue-600 mt-0.5">{excusedCount}</p>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Student Roll Call Table */}
+        {/* Student Attendance Roster Table */}
         <Card className="border-slate-200/80 dark:border-slate-800">
-          <CardHeader className="p-4 pb-3">
-            <CardTitle className="text-sm font-semibold">Student Attendance Roster</CardTitle>
-            <CardDescription className="text-xs">
-              Select attendance status and add optional notes for absent/late students.
-            </CardDescription>
+          <CardHeader className="p-4 pb-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div>
+              <CardTitle className="text-sm font-bold flex items-center gap-2">
+                <Users className="h-4 w-4 text-slate-500" />
+                <span>Class Roll Call Roster</span>
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Session: {currentAssignment?.academicYearName || "2026/2027"} | Term: {currentAssignment?.termName || "Term 1"}
+              </CardDescription>
+            </div>
+            <Badge variant="outline" className="text-xs font-mono font-bold">
+              Rate: {attendanceRate}%
+            </Badge>
           </CardHeader>
+
           <CardContent className="p-0">
             {loading ? (
               <div className="p-4 space-y-3">
                 <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
               </div>
             ) : roster.length === 0 ? (
-              <div className="p-8 text-center text-xs text-slate-500">
-                No students enrolled in this class section.
+              <div className="p-8">
+                <EmptyState
+                  title="No Students Found"
+                  description="No students are currently enrolled in this authorized class section for attendance recording."
+                />
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Student Name</TableHead>
-                    <TableHead>Code</TableHead>
-                    <TableHead className="w-[300px] text-center">Attendance Status</TableHead>
-                    <TableHead>Remarks / Reason</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {roster.map((item) => (
-                    <TableRow key={item.studentId}>
-                      <TableCell className="font-semibold text-xs text-slate-800 dark:text-slate-200">
-                        {item.studentName}
-                      </TableCell>
-                      <TableCell className="text-xs font-mono text-slate-500">
-                        {item.studentCode}
-                      </TableCell>
-
-                      {/* Status Toggle Buttons */}
-                      <TableCell>
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleStatusChange(item.studentId, "present")}
-                            className={`px-2.5 py-1 rounded-md text-xs font-bold transition-colors flex items-center gap-1 ${
-                              item.status === "present"
-                                ? "bg-emerald-600 text-white shadow-2xs"
-                                : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300"
-                            }`}
-                          >
-                            <CheckCircle2 className="h-3 w-3" /> Present
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleStatusChange(item.studentId, "absent")}
-                            className={`px-2.5 py-1 rounded-md text-xs font-bold transition-colors flex items-center gap-1 ${
-                              item.status === "absent"
-                                ? "bg-red-600 text-white shadow-2xs"
-                                : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300"
-                            }`}
-                          >
-                            <XCircle className="h-3 w-3" /> Absent
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleStatusChange(item.studentId, "late")}
-                            className={`px-2.5 py-1 rounded-md text-xs font-bold transition-colors flex items-center gap-1 ${
-                              item.status === "late"
-                                ? "bg-amber-600 text-white shadow-2xs"
-                                : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300"
-                            }`}
-                          >
-                            <Clock className="h-3 w-3" /> Late
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleStatusChange(item.studentId, "excused")}
-                            className={`px-2.5 py-1 rounded-md text-xs font-bold transition-colors flex items-center gap-1 ${
-                              item.status === "excused"
-                                ? "bg-purple-600 text-white shadow-2xs"
-                                : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300"
-                            }`}
-                          >
-                            <FileText className="h-3 w-3" /> Excused
-                          </button>
-                        </div>
-                      </TableCell>
-
-                      {/* Remarks Input */}
-                      <TableCell>
-                        <Input
-                          type="text"
-                          placeholder="Add remark..."
-                          value={item.remarks || ""}
-                          onChange={(e) => handleRemarkChange(item.studentId, e.target.value)}
-                          className="h-8 text-xs bg-slate-50 dark:bg-slate-900"
-                        />
-                      </TableCell>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Student Code</TableHead>
+                      <TableHead>Student Name</TableHead>
+                      <TableHead>Attendance Status</TableHead>
+                      <TableHead>Remarks / Notes</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
+                  </TableHeader>
+                  <TableBody>
+                    {roster.map((item) => (
+                      <TableRow key={item.studentId}>
+                        <TableCell className="font-mono text-xs font-semibold">
+                          {item.studentCode}
+                        </TableCell>
+                        <TableCell className="font-bold text-xs text-slate-900 dark:text-slate-100">
+                          {item.studentName}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1.5">
+                            <Button
+                              type="button"
+                              variant={item.status === "present" ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => handleStatusChange(item.studentId, "present")}
+                              className={`h-7 text-[10px] px-2 font-semibold ${
+                                item.status === "present" ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""
+                              }`}
+                            >
+                              Present
+                            </Button>
+                            <Button
+                              type="button"
+                              variant={item.status === "late" ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => handleStatusChange(item.studentId, "late")}
+                              className={`h-7 text-[10px] px-2 font-semibold ${
+                                item.status === "late" ? "bg-amber-600 hover:bg-amber-700 text-white" : ""
+                              }`}
+                            >
+                              Late
+                            </Button>
+                            <Button
+                              type="button"
+                              variant={item.status === "absent" ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => handleStatusChange(item.studentId, "absent")}
+                              className={`h-7 text-[10px] px-2 font-semibold ${
+                                item.status === "absent" ? "bg-rose-600 hover:bg-rose-700 text-white" : ""
+                              }`}
+                            >
+                              Absent
+                            </Button>
+                            <Button
+                              type="button"
+                              variant={item.status === "excused" ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => handleStatusChange(item.studentId, "excused")}
+                              className={`h-7 text-[10px] px-2 font-semibold ${
+                                item.status === "excused" ? "bg-blue-600 hover:bg-blue-700 text-white" : ""
+                              }`}
+                            >
+                              Excused
+                            </Button>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            value={item.remarks || ""}
+                            onChange={(e) => handleRemarkChange(item.studentId, e.target.value)}
+                            placeholder="Optional remark (e.g. medical note)..."
+                            className="h-7 text-xs max-w-xs"
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
                 </Table>
               </div>
             )}

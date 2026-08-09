@@ -81,6 +81,13 @@ export const NAVIGATION_BY_ROLE: Record<UserRole, NavSection[]> = {
           roles: ["administrator"],
         },
         {
+          title: "Student Enrollments",
+          href: "/admin/enrollments",
+          icon: "UserCheck",
+          badge: "Placement",
+          roles: ["administrator"],
+        },
+        {
           title: "Teachers",
           href: "/admin/teachers",
           icon: "UserCheck",
@@ -107,9 +114,22 @@ export const NAVIGATION_BY_ROLE: Record<UserRole, NavSection[]> = {
           roles: ["administrator"],
         },
         {
-          title: "School Structure",
-          href: "#",
+          title: "School Structure (Classes)",
+          href: "/admin/classes",
           icon: "Building2",
+          roles: ["administrator"],
+        },
+        {
+          title: "Curriculum Subjects",
+          href: "/admin/subjects",
+          icon: "BookOpen",
+          roles: ["administrator"],
+        },
+        {
+          title: "Academic Years & Terms",
+          href: "/admin/academic-years",
+          icon: "Calendar",
+          badge: "Calendar",
           roles: ["administrator"],
         },
         {
@@ -155,6 +175,26 @@ export const NAVIGATION_BY_ROLE: Record<UserRole, NavSection[]> = {
     {
       title: "Reports & Governance",
       items: [
+        {
+          title: "School Reports",
+          href: "/principal/reports",
+          icon: "FileText",
+          badge: "Print",
+          roles: ["principal"],
+        },
+        {
+          title: "Performance Analytics",
+          href: "/principal/analytics",
+          icon: "TrendingUp",
+          badge: "GES",
+          roles: ["principal"],
+        },
+        {
+          title: "Faculty Activity Analytics",
+          href: "/principal/teachers",
+          icon: "UserCheck",
+          roles: ["principal"],
+        },
         {
           title: "Attendance Analytics",
           href: "/principal/attendance",
@@ -213,6 +253,12 @@ export const NAVIGATION_BY_ROLE: Record<UserRole, NavSection[]> = {
           badge: "Register",
           roles: ["teacher"],
         },
+        {
+          title: "My Profile",
+          href: "/teacher/profile",
+          icon: "UserCheck",
+          roles: ["teacher"],
+        },
       ],
     },
     {
@@ -248,6 +294,13 @@ export const NAVIGATION_BY_ROLE: Record<UserRole, NavSection[]> = {
           title: "Results",
           href: "/student/results",
           icon: "Award",
+          roles: ["student"],
+        },
+        {
+          title: "Report Sheet",
+          href: "/student/report-sheet",
+          icon: "FileText",
+          badge: "PDF",
           roles: ["student"],
         },
         {

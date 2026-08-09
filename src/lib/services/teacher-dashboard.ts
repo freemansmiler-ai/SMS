@@ -1,179 +1,382 @@
 import { createBrowserClient, getSupabaseEnvConfig } from "@/lib/supabase";
 
-export interface AssignedSubjectSummary {
+export interface TeacherProfileInfo {
+  teacherId: string;
+  profileId: string;
+  schoolId: string;
+  employeeCode: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  department: string;
+  qualification: string;
+  avatarUrl?: string;
+}
+
+export interface TeacherAuthorizedAssignment {
   id: string;
-  code: string;
-  name: string;
+  subjectId: string;
+  subjectName: string;
+  subjectCode: string;
+  classId: string;
   className: string;
-  studentCount: number;
+  gradeLevel: string;
+  academicYearId: string;
+  academicYearName: string;
+  termId: string;
+  termName: string;
+}
+
+export interface ClassStudentRosterItem {
+  studentId: string;
+  studentCode: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  status: string;
+  rollNumber?: number;
 }
 
 export interface AssignedClassSummary {
   id: string;
+  classId: string;
   name: string;
+  className: string;
   gradeLevel: string;
   studentCount: number;
   subjectName: string;
+  subjectNames: string[];
+}
+
+export interface AssignedSubjectSummary {
+  id: string;
+  subjectId: string;
+  code: string;
+  subjectCode: string;
+  name: string;
+  subjectName: string;
+  className: string;
+  classNames: string[];
+  classCount: number;
+  studentCount: number;
 }
 
 export interface TeacherMetrics {
-  teacherName: string;
   totalSubjects: number;
   totalClasses: number;
   totalStudents: number;
-  pendingResultSubmissions: number;
   attendanceSubmittedToday: boolean;
+  totalAssignedClasses: number;
+  totalAssignedSubjects: number;
+  totalStudentsTaught: number;
 }
 
 export interface TeacherDashboardData {
+  identity: TeacherProfileInfo | null;
+  assignments: TeacherAuthorizedAssignment[];
   metrics: TeacherMetrics;
-  assignedSubjects: AssignedSubjectSummary[];
+  classesSummary: AssignedClassSummary[];
+  subjectsSummary: AssignedSubjectSummary[];
   assignedClasses: AssignedClassSummary[];
-  recentActivities: Array<{ id: string; title: string; timestamp: string; category: string }>;
+  assignedSubjects: AssignedSubjectSummary[];
 }
 
-export async function fetchTeacherDashboardData(): Promise<TeacherDashboardData> {
+export async function fetchCurrentTeacherIdentity(): Promise<TeacherProfileInfo | null> {
   const config = getSupabaseEnvConfig();
-
-  // Initial Mock Fallback if database is in placeholder mode (Ghanaian GES teacher perspective)
   if (config.isPlaceholder || !config.isConfigured) {
     return {
-      metrics: {
-        teacherName: "Abena Appiah",
-        totalSubjects: 2,
-        totalClasses: 2,
-        totalStudents: 74,
-        pendingResultSubmissions: 3,
-        attendanceSubmittedToday: true,
-      },
-      assignedSubjects: [
-        {
-          id: "subj-math101",
-          code: "MATH-101",
-          name: "Core Mathematics",
-          className: "Basic 8 - Section A",
-          studentCount: 38,
-        },
-        {
-          id: "subj-sci101",
-          code: "SCI-101",
-          name: "Integrated Science",
-          className: "Basic 9 - Section B",
-          studentCount: 36,
-        },
-      ],
-      assignedClasses: [
-        {
-          id: "class-basic8a",
-          name: "Basic 8 - Section A",
-          gradeLevel: "Basic 8",
-          studentCount: 38,
-          subjectName: "Core Mathematics",
-        },
-        {
-          id: "class-basic9b",
-          name: "Basic 9 - Section B",
-          gradeLevel: "Basic 9",
-          studentCount: 36,
-          subjectName: "Integrated Science",
-        },
-      ],
-      recentActivities: [
-        {
-          id: "act-1",
-          title: "Attendance marked for Basic 8 - Section A",
-          timestamp: "Today, 08:30 AM",
-          category: "attendance",
-        },
-        {
-          id: "act-2",
-          title: "Term 1 Marksheet Draft saved for Core Mathematics",
-          timestamp: "Yesterday, 04:15 PM",
-          category: "academic",
-        },
-        {
-          id: "act-3",
-          title: "Integrated Science Lesson Plan uploaded",
-          timestamp: "2 days ago",
-          category: "system",
-        },
-      ],
+      teacherId: "tch-201",
+      profileId: "prof-201",
+      schoolId: "sch-01",
+      employeeCode: "GES-TCH-2026-001",
+      firstName: "Abena",
+      lastName: "Appiah",
+      email: "a.appiah@ghanaschools.edu.gh",
+      department: "Mathematics & Science",
+      qualification: "B.Ed. Mathematics",
+      avatarUrl: "",
     };
   }
 
   const supabase = createBrowserClient();
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Unauthenticated teacher user");
+    if (!user) return null;
 
-    // Fetch teacher record linked to authenticated user profile
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: teacherRecord } = await (supabase.from("teachers") as any)
-      .select("id, profile_id, profiles(first_name, last_name)")
-      .eq("profile_id", user.id)
+    const { data: profile } = await (supabase.from("profiles") as any)
+      .select("id, school_id, email, first_name, last_name, role, avatar_url")
+      .eq("id", user.id)
       .single();
 
-    const teacherName = teacherRecord?.profiles
-      ? `${teacherRecord.profiles.first_name} ${teacherRecord.profiles.last_name}`
-      : "Faculty Teacher";
+    if (!profile || profile.role !== "teacher") return null;
 
-    // Strictly query teacher_assignments for logged-in teacher only
-    // Database level security policies enforce teacher_id = auth.uid()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: assignments } = await (supabase.from("teacher_assignments") as any)
+    const { data: teacher } = await (supabase.from("teachers") as any)
+      .select("id, employee_code, department, qualification")
+      .eq("profile_id", user.id)
+      .eq("school_id", profile.school_id)
+      .single();
+
+    if (!teacher) return null;
+
+    return {
+      teacherId: teacher.id,
+      profileId: profile.id,
+      schoolId: profile.school_id,
+      employeeCode: teacher.employee_code,
+      firstName: profile.first_name,
+      lastName: profile.last_name,
+      email: profile.email,
+      department: teacher.department || "General",
+      qualification: teacher.qualification || "B.Ed",
+      avatarUrl: profile.avatar_url,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchTeacherAuthorizedAssignments(): Promise<TeacherAuthorizedAssignment[]> {
+  const config = getSupabaseEnvConfig();
+  if (config.isPlaceholder || !config.isConfigured) {
+    return [
+      {
+        id: "asgn-1",
+        subjectId: "subj-math101",
+        subjectName: "Core Mathematics",
+        subjectCode: "MATH-101",
+        classId: "class-basic8a",
+        className: "Basic 8 - Section A",
+        gradeLevel: "Basic 8",
+        academicYearId: "ay-2026",
+        academicYearName: "2026/2027 Academic Year",
+        termId: "term-1-2026",
+        termName: "Term 1",
+      },
+      {
+        id: "asgn-2",
+        subjectId: "subj-math101",
+        subjectName: "Core Mathematics",
+        subjectCode: "MATH-101",
+        classId: "class-basic7a",
+        className: "Basic 7 - Section A",
+        gradeLevel: "Basic 7",
+        academicYearId: "ay-2026",
+        academicYearName: "2026/2027 Academic Year",
+        termId: "term-1-2026",
+        termName: "Term 1",
+      },
+      {
+        id: "asgn-3",
+        subjectId: "subj-sci101",
+        subjectName: "Integrated Science",
+        subjectCode: "SCI-101",
+        classId: "class-basic8a",
+        className: "Basic 8 - Section A",
+        gradeLevel: "Basic 8",
+        academicYearId: "ay-2026",
+        academicYearName: "2026/2027 Academic Year",
+        termId: "term-1-2026",
+        termName: "Term 1",
+      },
+    ];
+  }
+
+  const identity = await fetchCurrentTeacherIdentity();
+  if (!identity) return [];
+
+  const supabase = createBrowserClient();
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: assignments, error } = await (supabase.from("teacher_assignments") as any)
       .select(`
         id,
         subject_id,
         class_id,
-        subjects:subject_id (code, name),
-        classes:class_id (name, grade_level)
+        academic_year_id,
+        term_id,
+        subjects:subject_id ( id, name, code ),
+        classes:class_id ( id, name, grade_level ),
+        academic_years:academic_year_id ( id, name ),
+        terms:term_id ( id, name )
       `)
-      .eq("teacher_id", teacherRecord?.id || "");
+      .eq("teacher_id", identity.teacherId)
+      .eq("school_id", identity.schoolId);
+
+    if (error || !assignments) return [];
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const assignedSubjects: AssignedSubjectSummary[] = (assignments || []).map((a: any) => ({
-      id: a.subject_id,
-      code: a.subjects?.code || "SUBJ",
-      name: a.subjects?.name || "Assigned Subject",
-      className: a.classes?.name || "Basic Class",
-      studentCount: 35,
+    return assignments.map((a: any) => ({
+      id: a.id,
+      subjectId: a.subject_id,
+      subjectName: a.subjects?.name || "Subject",
+      subjectCode: a.subjects?.code || "SUBJ",
+      classId: a.class_id,
+      className: a.classes?.name || "Class",
+      gradeLevel: a.classes?.grade_level || "",
+      academicYearId: a.academic_year_id,
+      academicYearName: a.academic_years?.name || "Academic Year",
+      termId: a.term_id,
+      termName: a.terms?.name || "Term",
     }));
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const assignedClasses: AssignedClassSummary[] = (assignments || []).map((a: any) => ({
-      id: a.class_id,
-      name: a.classes?.name || "Basic Class",
-      gradeLevel: a.classes?.grade_level || "Basic 8",
-      studentCount: 35,
-      subjectName: a.subjects?.name || "Core Subject",
-    }));
-
-    return {
-      metrics: {
-        teacherName,
-        totalSubjects: assignedSubjects.length,
-        totalClasses: assignedClasses.length,
-        totalStudents: assignedSubjects.reduce((acc, curr) => acc + curr.studentCount, 0),
-        pendingResultSubmissions: 2,
-        attendanceSubmittedToday: true,
-      },
-      assignedSubjects,
-      assignedClasses,
-      recentActivities: [],
-    };
   } catch {
-    return {
-      metrics: {
-        teacherName: "Faculty Teacher",
-        totalSubjects: 0,
-        totalClasses: 0,
-        totalStudents: 0,
-        pendingResultSubmissions: 0,
-        attendanceSubmittedToday: false,
-      },
-      assignedSubjects: [],
-      assignedClasses: [],
-      recentActivities: [],
-    };
+    return [];
   }
+}
+
+export async function fetchAuthorizedClassRoster(
+  classId: string,
+  academicYearId: string,
+  subjectId: string
+): Promise<ClassStudentRosterItem[]> {
+  const config = getSupabaseEnvConfig();
+  if (config.isPlaceholder || !config.isConfigured) {
+    return [
+      {
+        studentId: "stu-101",
+        studentCode: "GES-2026-001",
+        firstName: "Kwame",
+        lastName: "Kyeremateng",
+        email: "k.kyeremateng@student.ghanaschools.edu.gh",
+        status: "enrolled",
+        rollNumber: 1,
+      },
+      {
+        studentId: "stu-102",
+        studentCode: "GES-2026-002",
+        firstName: "Akosua",
+        lastName: "Mensah",
+        email: "a.mensah@student.ghanaschools.edu.gh",
+        status: "enrolled",
+        rollNumber: 2,
+      },
+      {
+        studentId: "stu-103",
+        studentCode: "GES-2026-003",
+        firstName: "Kofi",
+        lastName: "Osei",
+        email: "k.osei@student.ghanaschools.edu.gh",
+        status: "enrolled",
+        rollNumber: 3,
+      },
+    ];
+  }
+
+  const assignments = await fetchTeacherAuthorizedAssignments();
+  const isAuthorized = assignments.some(
+    (a) =>
+      a.classId === classId &&
+      a.subjectId === subjectId &&
+      a.academicYearId === academicYearId
+  );
+
+  if (!isAuthorized) {
+    return []; // Denied
+  }
+
+  const supabase = createBrowserClient();
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: enrollments, error } = await (supabase.from("student_enrollments") as any)
+      .select(`
+        id,
+        roll_number,
+        status,
+        students:student_id (
+          id,
+          student_code,
+          profiles:profile_id ( first_name, last_name, email )
+        )
+      `)
+      .eq("class_id", classId)
+      .eq("academic_year_id", academicYearId);
+
+    if (error || !enrollments) return [];
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return enrollments.map((e: any) => ({
+      studentId: e.students?.id || "",
+      studentCode: e.students?.student_code || "",
+      firstName: e.students?.profiles?.first_name || "",
+      lastName: e.students?.profiles?.last_name || "",
+      email: e.students?.profiles?.email || "",
+      status: e.status || "enrolled",
+      rollNumber: e.roll_number,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchTeacherDashboardData(): Promise<TeacherDashboardData> {
+  const identity = await fetchCurrentTeacherIdentity();
+  const assignments = await fetchTeacherAuthorizedAssignments();
+
+  const classMap = new Map<string, AssignedClassSummary>();
+  const subjectMap = new Map<string, AssignedSubjectSummary>();
+
+  assignments.forEach((a) => {
+    if (!classMap.has(a.classId)) {
+      classMap.set(a.classId, {
+        id: a.classId,
+        classId: a.classId,
+        name: a.className,
+        className: a.className,
+        gradeLevel: a.gradeLevel,
+        studentCount: 30,
+        subjectName: a.subjectName,
+        subjectNames: [a.subjectName],
+      });
+    } else {
+      const existing = classMap.get(a.classId)!;
+      if (!existing.subjectNames.includes(a.subjectName)) {
+        existing.subjectNames.push(a.subjectName);
+      }
+    }
+
+    if (!subjectMap.has(a.subjectId)) {
+      subjectMap.set(a.subjectId, {
+        id: a.subjectId,
+        subjectId: a.subjectId,
+        code: a.subjectCode,
+        subjectCode: a.subjectCode,
+        name: a.subjectName,
+        subjectName: a.subjectName,
+        className: a.className,
+        classNames: [a.className],
+        classCount: 1,
+        studentCount: 30,
+      });
+    } else {
+      const existing = subjectMap.get(a.subjectId)!;
+      if (!existing.classNames.includes(a.className)) {
+        existing.classNames.push(a.className);
+        existing.classCount++;
+      }
+    }
+  });
+
+  const classesSummary = Array.from(classMap.values());
+  const subjectsSummary = Array.from(subjectMap.values());
+
+  const totalStudents = classesSummary.reduce((acc, c) => acc + c.studentCount, 0);
+
+  return {
+    identity,
+    assignments,
+    metrics: {
+      totalSubjects: subjectMap.size,
+      totalClasses: classMap.size,
+      totalStudents,
+      attendanceSubmittedToday: false,
+      totalAssignedClasses: classMap.size,
+      totalAssignedSubjects: subjectMap.size,
+      totalStudentsTaught: totalStudents,
+    },
+    classesSummary,
+    subjectsSummary,
+    assignedClasses: classesSummary,
+    assignedSubjects: subjectsSummary,
+  };
 }

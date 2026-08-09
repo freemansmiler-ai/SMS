@@ -1,191 +1,503 @@
 -- ==============================================================================
--- SCHOOL MANAGEMENT SYSTEM - AUTHENTICATION & ROW LEVEL SECURITY (RLS)
+-- SCHOOL MANAGEMENT SYSTEM - ROW LEVEL SECURITY (RLS) & AUTHORIZATION MIGRATION
+-- Multi-Tenant Prepared & Role-Scoped Security Architecture
 -- ==============================================================================
 
 -- ------------------------------------------------------------------------------
--- 1. HELPER FUNCTIONS FOR SECURITY POLICIES
+-- 1. SECURE HELPER FUNCTIONS (STABLE, SECURITY DEFINER with fixed search_path)
 -- ------------------------------------------------------------------------------
-
--- Get current authenticated user's role from public.profiles
-CREATE OR REPLACE FUNCTION get_user_role()
-RETURNS user_role AS $$
-    SELECT role FROM public.profiles WHERE id = auth.uid();
-$$ LANGUAGE sql SECURITY DEFINER STABLE;
 
 -- Get current authenticated user's school_id from public.profiles
-CREATE OR REPLACE FUNCTION get_user_school_id()
-RETURNS UUID AS $$
+CREATE OR REPLACE FUNCTION get_auth_school_id()
+RETURNS UUID
+LANGUAGE sql SECURITY DEFINER STABLE
+SET search_path = public, pg_temp AS $$
     SELECT school_id FROM public.profiles WHERE id = auth.uid();
-$$ LANGUAGE sql SECURITY DEFINER STABLE;
+$$;
 
--- Check if current user is an administrator or principal
-CREATE OR REPLACE FUNCTION is_admin_or_principal()
-RETURNS BOOLEAN AS $$
+-- Get current authenticated user's role from public.profiles
+CREATE OR REPLACE FUNCTION get_auth_role()
+RETURNS user_role
+LANGUAGE sql SECURITY DEFINER STABLE
+SET search_path = public, pg_temp AS $$
+    SELECT role FROM public.profiles WHERE id = auth.uid();
+$$;
+
+-- Get current authenticated user's teacher record ID
+CREATE OR REPLACE FUNCTION get_auth_teacher_id()
+RETURNS UUID
+LANGUAGE sql SECURITY DEFINER STABLE
+SET search_path = public, pg_temp AS $$
+    SELECT id FROM public.teachers WHERE profile_id = auth.uid() LIMIT 1;
+$$;
+
+-- Get current authenticated user's student record ID
+CREATE OR REPLACE FUNCTION get_auth_student_id()
+RETURNS UUID
+LANGUAGE sql SECURITY DEFINER STABLE
+SET search_path = public, pg_temp AS $$
+    SELECT id FROM public.students WHERE profile_id = auth.uid() LIMIT 1;
+$$;
+
+-- Check if teacher is assigned to a specific class and subject
+CREATE OR REPLACE FUNCTION is_teacher_assigned_to_class_subject(
+    p_teacher_id UUID,
+    p_class_id UUID,
+    p_subject_id UUID
+)
+RETURNS BOOLEAN
+LANGUAGE sql SECURITY DEFINER STABLE
+SET search_path = public, pg_temp AS $$
     SELECT EXISTS (
-        SELECT 1 FROM public.profiles
-        WHERE id = auth.uid()
-        AND role IN ('administrator', 'principal')
+        SELECT 1 FROM public.teacher_assignments
+        WHERE teacher_id = p_teacher_id
+          AND class_id = p_class_id
+          AND subject_id = p_subject_id
     );
-$$ LANGUAGE sql SECURITY DEFINER STABLE;
+$$;
+
+-- Check if teacher is assigned to a specific class
+CREATE OR REPLACE FUNCTION is_teacher_assigned_to_class(
+    p_teacher_id UUID,
+    p_class_id UUID
+)
+RETURNS BOOLEAN
+LANGUAGE sql SECURITY DEFINER STABLE
+SET search_path = public, pg_temp AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM public.teacher_assignments
+        WHERE teacher_id = p_teacher_id
+          AND class_id = p_class_id
+    );
+$$;
+
+-- Check if student is enrolled in a specific class
+CREATE OR REPLACE FUNCTION is_student_enrolled_in_class(
+    p_student_id UUID,
+    p_class_id UUID
+)
+RETURNS BOOLEAN
+LANGUAGE sql SECURITY DEFINER STABLE
+SET search_path = public, pg_temp AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM public.student_enrollments
+        WHERE student_id = p_student_id
+          AND class_id = p_class_id
+    );
+$$;
 
 -- ------------------------------------------------------------------------------
--- 2. AUTOMATIC PROFILE CREATION TRIGGER
+-- 2. PROFILE PRIVILEGE ESCALATION PROTECTION TRIGGER
 -- ------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION handle_new_user()
-RETURNS TRIGGER AS $$
-DECLARE
-    default_school_id UUID;
+CREATE OR REPLACE FUNCTION prevent_profile_privilege_escalation()
+RETURNS TRIGGER
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp AS $$
 BEGIN
-    -- Obtain default school ID or user metadata school_id
-    IF NEW.raw_user_meta_data->>'school_id' IS NOT NULL THEN
-        default_school_id := (NEW.raw_user_meta_data->>'school_id')::UUID;
-    ELSE
-        SELECT id INTO default_school_id FROM public.schools LIMIT 1;
+    IF get_auth_role() != 'administrator' THEN
+        IF OLD.role IS DISTINCT FROM NEW.role THEN
+            RAISE EXCEPTION 'PRIVILEGE_ESCALATION_VIOLATION: Non-administrator cannot modify role.';
+        END IF;
+        IF OLD.school_id IS DISTINCT FROM NEW.school_id THEN
+            RAISE EXCEPTION 'MULTI_TENANT_VIOLATION: Non-administrator cannot modify school_id.';
+        END IF;
+        IF OLD.is_active IS DISTINCT FROM NEW.is_active THEN
+            RAISE EXCEPTION 'SECURITY_VIOLATION: Non-administrator cannot modify account status.';
+        END IF;
     END IF;
-
-    INSERT INTO public.profiles (
-        id,
-        school_id,
-        email,
-        first_name,
-        last_name,
-        role,
-        avatar_url,
-        phone
-    ) VALUES (
-        NEW.id,
-        default_school_id,
-        NEW.email,
-        COALESCE(NEW.raw_user_meta_data->>'first_name', 'New'),
-        COALESCE(NEW.raw_user_meta_data->>'last_name', 'User'),
-        COALESCE((NEW.raw_user_meta_data->>'role')::user_role, 'student'),
-        NEW.raw_user_meta_data->>'avatar_url',
-        NEW.raw_user_meta_data->>'phone'
-    );
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
--- Trigger on auth.users insert
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-    AFTER INSERT ON auth.users
-    FOR EACH ROW EXECUTE FUNCTION handle_new_user();
-
--- ------------------------------------------------------------------------------
--- 3. ROW LEVEL SECURITY (RLS) POLICIES ON ALL TABLES
--- ------------------------------------------------------------------------------
-
--- Enable RLS on all public tables
-ALTER TABLE schools ENABLE ROW LEVEL SECURITY;
-ALTER TABLE school_settings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE students ENABLE ROW LEVEL SECURITY;
-ALTER TABLE teachers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE academic_years ENABLE ROW LEVEL SECURITY;
-ALTER TABLE terms ENABLE ROW LEVEL SECURITY;
-ALTER TABLE classes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE subjects ENABLE ROW LEVEL SECURITY;
-ALTER TABLE teacher_assignments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE student_enrollments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE results ENABLE ROW LEVEL SECURITY;
-ALTER TABLE attendance ENABLE ROW LEVEL SECURITY;
-ALTER TABLE timetables ENABLE ROW LEVEL SECURITY;
-ALTER TABLE announcements ENABLE ROW LEVEL SECURITY;
-ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
-ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
+DROP TRIGGER IF EXISTS trg_prevent_profile_privilege_escalation ON public.profiles;
+CREATE TRIGGER trg_prevent_profile_privilege_escalation
+    BEFORE UPDATE ON public.profiles
+    FOR EACH ROW EXECUTE FUNCTION prevent_profile_privilege_escalation();
 
 -- ------------------------------------------------------------------------------
--- PROFILES POLICIES
+-- 3. RESULT LIFECYCLE & STATUS VALIDATION TRIGGER
 -- ------------------------------------------------------------------------------
-CREATE POLICY "Users can read profiles in their school"
-    ON profiles FOR SELECT
-    USING (school_id = get_user_school_id());
+CREATE OR REPLACE FUNCTION validate_result_status_transition()
+RETURNS TRIGGER
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp AS $$
+DECLARE
+    current_role user_role := get_auth_role();
+BEGIN
+    -- On INSERT
+    IF TG_OP = 'INSERT' THEN
+        IF current_role = 'student' THEN
+            RAISE EXCEPTION 'UNAUTHORIZED: Students cannot create result entries.';
+        END IF;
+        IF current_role = 'teacher' AND NEW.status != 'draft' THEN
+            RAISE EXCEPTION 'TEACHER_RESTRICTION: Initial result status must be draft.';
+        END IF;
+    END IF;
 
-CREATE POLICY "Users can update their own profile"
-    ON profiles FOR UPDATE
-    USING (id = auth.uid());
+    -- On UPDATE
+    IF TG_OP = 'UPDATE' THEN
+        IF current_role = 'student' THEN
+            RAISE EXCEPTION 'UNAUTHORIZED: Students cannot update result entries.';
+        END IF;
 
-CREATE POLICY "Administrators can insert and delete profiles in their school"
-    ON profiles FOR ALL
-    USING (school_id = get_user_school_id() AND get_user_role() = 'administrator');
+        IF current_role = 'teacher' THEN
+            -- Teachers can only update results assigned to them
+            IF OLD.teacher_id IS DISTINCT FROM get_auth_teacher_id() AND NEW.teacher_id IS DISTINCT FROM get_auth_teacher_id() THEN
+                RAISE EXCEPTION 'TEACHER_RESTRICTION: Cannot edit results belonging to another teacher.';
+            END IF;
+
+            -- Teachers can only edit when current status is draft or returned
+            IF OLD.status NOT IN ('draft', 'returned') THEN
+                RAISE EXCEPTION 'TEACHER_RESTRICTION: Cannot modify results once submitted, approved, or published.';
+            END IF;
+
+            -- Teachers can only set status to draft or submitted
+            IF NEW.status NOT IN ('draft', 'submitted') THEN
+                RAISE EXCEPTION 'TEACHER_RESTRICTION: Teachers cannot directly approve, review, or publish results.';
+            END IF;
+        END IF;
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_validate_result_status_transition ON public.results;
+CREATE TRIGGER trg_validate_result_status_transition
+    BEFORE INSERT OR UPDATE ON public.results
+    FOR EACH ROW EXECUTE FUNCTION validate_result_status_transition();
 
 -- ------------------------------------------------------------------------------
--- SCHOOLS & SETTINGS POLICIES
+-- 4. ENABLE RLS ON ALL 17 TABLES
 -- ------------------------------------------------------------------------------
-CREATE POLICY "Users can view their own school"
-    ON schools FOR SELECT
-    USING (id = get_user_school_id());
+ALTER TABLE public.schools ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.school_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.teachers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.academic_years ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.terms ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.classes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.subjects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.teacher_assignments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.student_enrollments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.results ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.attendance ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.timetables ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Administrators can update their school settings"
-    ON school_settings FOR ALL
-    USING (school_id = get_user_school_id() AND get_user_role() = 'administrator');
+-- Clean up existing policies before re-defining
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN (
+        SELECT policyname, tablename
+        FROM pg_policies
+        WHERE schemaname = 'public'
+    ) LOOP
+        EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', r.policyname, r.tablename);
+    END LOOP;
+END $$;
 
 -- ------------------------------------------------------------------------------
--- STUDENTS POLICIES
+-- 5. ROW LEVEL SECURITY POLICIES DEFINITION
 -- ------------------------------------------------------------------------------
-CREATE POLICY "Staff can view students in their school"
-    ON students FOR SELECT
-    USING (school_id = get_user_school_id());
 
-CREATE POLICY "Students can view their own student profile"
-    ON students FOR SELECT
-    USING (profile_id = auth.uid());
+-- 1. SCHOOLS
+CREATE POLICY "schools_select_own" ON public.schools
+    FOR SELECT USING (id = get_auth_school_id());
 
-CREATE POLICY "Admin & Principal can manage students"
-    ON students FOR ALL
-    USING (school_id = get_user_school_id() AND is_admin_or_principal());
+CREATE POLICY "schools_update_admin" ON public.schools
+    FOR UPDATE USING (id = get_auth_school_id() AND get_auth_role() = 'administrator');
 
--- ------------------------------------------------------------------------------
--- RESULTS / GRADES POLICIES (Strict Student Isolation)
--- ------------------------------------------------------------------------------
-CREATE POLICY "Staff can view results in their school"
-    ON results FOR SELECT
-    USING (school_id = get_user_school_id() AND get_user_role() IN ('administrator', 'principal', 'teacher'));
+-- 2. SCHOOL SETTINGS
+CREATE POLICY "settings_select_own" ON public.school_settings
+    FOR SELECT USING (school_id = get_auth_school_id());
 
-CREATE POLICY "Students can ONLY view their own results"
-    ON results FOR SELECT
-    USING (
-        school_id = get_user_school_id()
-        AND student_id IN (SELECT id FROM students WHERE profile_id = auth.uid())
+CREATE POLICY "settings_all_admin" ON public.school_settings
+    FOR ALL USING (school_id = get_auth_school_id() AND get_auth_role() = 'administrator');
+
+-- 3. PROFILES
+CREATE POLICY "profiles_select_same_school" ON public.profiles
+    FOR SELECT USING (school_id = get_auth_school_id());
+
+CREATE POLICY "profiles_update_own" ON public.profiles
+    FOR UPDATE USING (id = auth.uid());
+
+CREATE POLICY "profiles_all_admin" ON public.profiles
+    FOR ALL USING (school_id = get_auth_school_id() AND get_auth_role() = 'administrator');
+
+-- 4. STUDENTS
+CREATE POLICY "students_select_admin_principal" ON public.students
+    FOR SELECT USING (school_id = get_auth_school_id() AND get_auth_role() IN ('administrator', 'principal'));
+
+CREATE POLICY "students_select_teacher" ON public.students
+    FOR SELECT USING (
+        school_id = get_auth_school_id()
+        AND get_auth_role() = 'teacher'
+        AND EXISTS (
+            SELECT 1 FROM public.student_enrollments se
+            JOIN public.teacher_assignments ta ON ta.class_id = se.class_id
+            WHERE se.student_id = students.id
+              AND ta.teacher_id = get_auth_teacher_id()
+        )
     );
 
-CREATE POLICY "Teachers and Admin can insert/update results"
-    ON results FOR ALL
-    USING (school_id = get_user_school_id() AND get_user_role() IN ('administrator', 'teacher'));
+CREATE POLICY "students_select_own" ON public.students
+    FOR SELECT USING (profile_id = auth.uid() AND school_id = get_auth_school_id());
 
--- ------------------------------------------------------------------------------
--- ATTENDANCE POLICIES (Strict Student Isolation)
--- ------------------------------------------------------------------------------
-CREATE POLICY "Staff can view attendance in their school"
-    ON attendance FOR SELECT
-    USING (school_id = get_user_school_id() AND get_user_role() IN ('administrator', 'principal', 'teacher'));
+CREATE POLICY "students_manage_admin_principal" ON public.students
+    FOR ALL USING (school_id = get_auth_school_id() AND get_auth_role() IN ('administrator', 'principal'));
 
-CREATE POLICY "Students can ONLY view their own attendance"
-    ON attendance FOR SELECT
-    USING (
-        school_id = get_user_school_id()
-        AND student_id IN (SELECT id FROM students WHERE profile_id = auth.uid())
+-- 5. TEACHERS
+CREATE POLICY "teachers_select_same_school" ON public.teachers
+    FOR SELECT USING (school_id = get_auth_school_id());
+
+CREATE POLICY "teachers_manage_admin" ON public.teachers
+    FOR ALL USING (school_id = get_auth_school_id() AND get_auth_role() = 'administrator');
+
+-- 6. ACADEMIC YEARS
+CREATE POLICY "academic_years_select_same_school" ON public.academic_years
+    FOR SELECT USING (school_id = get_auth_school_id());
+
+CREATE POLICY "academic_years_manage_admin" ON public.academic_years
+    FOR ALL USING (school_id = get_auth_school_id() AND get_auth_role() = 'administrator');
+
+-- 7. TERMS
+CREATE POLICY "terms_select_same_school" ON public.terms
+    FOR SELECT USING (school_id = get_auth_school_id());
+
+CREATE POLICY "terms_manage_admin" ON public.terms
+    FOR ALL USING (school_id = get_auth_school_id() AND get_auth_role() = 'administrator');
+
+-- 8. CLASSES
+CREATE POLICY "classes_select_admin_principal" ON public.classes
+    FOR SELECT USING (school_id = get_auth_school_id() AND get_auth_role() IN ('administrator', 'principal'));
+
+CREATE POLICY "classes_select_teacher" ON public.classes
+    FOR SELECT USING (
+        school_id = get_auth_school_id()
+        AND get_auth_role() = 'teacher'
+        AND (class_teacher_id = get_auth_teacher_id() OR is_teacher_assigned_to_class(get_auth_teacher_id(), id))
     );
 
-CREATE POLICY "Teachers and Admin can manage attendance"
-    ON attendance FOR ALL
-    USING (school_id = get_user_school_id() AND get_user_role() IN ('administrator', 'teacher'));
+CREATE POLICY "classes_select_student" ON public.classes
+    FOR SELECT USING (
+        school_id = get_auth_school_id()
+        AND get_auth_role() = 'student'
+        AND is_student_enrolled_in_class(get_auth_student_id(), id)
+    );
+
+CREATE POLICY "classes_manage_admin" ON public.classes
+    FOR ALL USING (school_id = get_auth_school_id() AND get_auth_role() = 'administrator');
+
+-- 9. SUBJECTS
+CREATE POLICY "subjects_select_same_school" ON public.subjects
+    FOR SELECT USING (school_id = get_auth_school_id());
+
+CREATE POLICY "subjects_manage_admin" ON public.subjects
+    FOR ALL USING (school_id = get_auth_school_id() AND get_auth_role() = 'administrator');
+
+-- 10. TEACHER ASSIGNMENTS
+CREATE POLICY "teacher_assignments_select_admin_principal" ON public.teacher_assignments
+    FOR SELECT USING (school_id = get_auth_school_id() AND get_auth_role() IN ('administrator', 'principal'));
+
+CREATE POLICY "teacher_assignments_select_teacher_own" ON public.teacher_assignments
+    FOR SELECT USING (
+        school_id = get_auth_school_id()
+        AND get_auth_role() = 'teacher'
+        AND teacher_id = get_auth_teacher_id()
+    );
+
+CREATE POLICY "teacher_assignments_manage_admin" ON public.teacher_assignments
+    FOR ALL USING (school_id = get_auth_school_id() AND get_auth_role() = 'administrator');
+
+-- 11. STUDENT ENROLLMENTS
+CREATE POLICY "student_enrollments_select_admin_principal" ON public.student_enrollments
+    FOR SELECT USING (school_id = get_auth_school_id() AND get_auth_role() IN ('administrator', 'principal'));
+
+CREATE POLICY "student_enrollments_select_teacher" ON public.student_enrollments
+    FOR SELECT USING (
+        school_id = get_auth_school_id()
+        AND get_auth_role() = 'teacher'
+        AND is_teacher_assigned_to_class(get_auth_teacher_id(), class_id)
+    );
+
+CREATE POLICY "student_enrollments_select_student_own" ON public.student_enrollments
+    FOR SELECT USING (
+        school_id = get_auth_school_id()
+        AND get_auth_role() = 'student'
+        AND student_id = get_auth_student_id()
+    );
+
+CREATE POLICY "student_enrollments_manage_admin_principal" ON public.student_enrollments
+    FOR ALL USING (school_id = get_auth_school_id() AND get_auth_role() IN ('administrator', 'principal'));
+
+-- 12. RESULTS / GRADES
+CREATE POLICY "results_select_admin_principal" ON public.results
+    FOR SELECT USING (school_id = get_auth_school_id() AND get_auth_role() IN ('administrator', 'principal'));
+
+CREATE POLICY "results_select_teacher" ON public.results
+    FOR SELECT USING (
+        school_id = get_auth_school_id()
+        AND get_auth_role() = 'teacher'
+        AND (teacher_id = get_auth_teacher_id() OR is_teacher_assigned_to_class_subject(get_auth_teacher_id(), class_id, subject_id))
+    );
+
+CREATE POLICY "results_select_student_published_own" ON public.results
+    FOR SELECT USING (
+        school_id = get_auth_school_id()
+        AND get_auth_role() = 'student'
+        AND student_id = get_auth_student_id()
+        AND status = 'published'
+    );
+
+CREATE POLICY "results_insert_teacher" ON public.results
+    FOR INSERT WITH CHECK (
+        school_id = get_auth_school_id()
+        AND get_auth_role() = 'teacher'
+        AND teacher_id = get_auth_teacher_id()
+        AND is_teacher_assigned_to_class_subject(get_auth_teacher_id(), class_id, subject_id)
+        AND status = 'draft'
+    );
+
+CREATE POLICY "results_update_teacher" ON public.results
+    FOR UPDATE USING (
+        school_id = get_auth_school_id()
+        AND get_auth_role() = 'teacher'
+        AND teacher_id = get_auth_teacher_id()
+        AND status IN ('draft', 'returned')
+    );
+
+CREATE POLICY "results_update_principal" ON public.results
+    FOR UPDATE USING (
+        school_id = get_auth_school_id()
+        AND get_auth_role() = 'principal'
+    );
+
+CREATE POLICY "results_manage_admin" ON public.results
+    FOR ALL USING (school_id = get_auth_school_id() AND get_auth_role() = 'administrator');
+
+-- 13. ATTENDANCE
+CREATE POLICY "attendance_select_admin_principal" ON public.attendance
+    FOR SELECT USING (school_id = get_auth_school_id() AND get_auth_role() IN ('administrator', 'principal'));
+
+CREATE POLICY "attendance_select_teacher" ON public.attendance
+    FOR SELECT USING (
+        school_id = get_auth_school_id()
+        AND get_auth_role() = 'teacher'
+        AND is_teacher_assigned_to_class(get_auth_teacher_id(), class_id)
+    );
+
+CREATE POLICY "attendance_select_student_own" ON public.attendance
+    FOR SELECT USING (
+        school_id = get_auth_school_id()
+        AND get_auth_role() = 'student'
+        AND student_id = get_auth_student_id()
+    );
+
+CREATE POLICY "attendance_insert_update_teacher" ON public.attendance
+    FOR ALL USING (
+        school_id = get_auth_school_id()
+        AND get_auth_role() = 'teacher'
+        AND is_teacher_assigned_to_class(get_auth_teacher_id(), class_id)
+    );
+
+CREATE POLICY "attendance_manage_admin_principal" ON public.attendance
+    FOR ALL USING (school_id = get_auth_school_id() AND get_auth_role() IN ('administrator', 'principal'));
+
+-- 14. TIMETABLES
+CREATE POLICY "timetables_select_admin_principal" ON public.timetables
+    FOR SELECT USING (school_id = get_auth_school_id() AND get_auth_role() IN ('administrator', 'principal'));
+
+CREATE POLICY "timetables_select_teacher" ON public.timetables
+    FOR SELECT USING (
+        school_id = get_auth_school_id()
+        AND get_auth_role() = 'teacher'
+        AND (teacher_id = get_auth_teacher_id() OR is_teacher_assigned_to_class(get_auth_teacher_id(), class_id))
+    );
+
+CREATE POLICY "timetables_select_student" ON public.timetables
+    FOR SELECT USING (
+        school_id = get_auth_school_id()
+        AND get_auth_role() = 'student'
+        AND is_student_enrolled_in_class(get_auth_student_id(), class_id)
+    );
+
+CREATE POLICY "timetables_manage_admin" ON public.timetables
+    FOR ALL USING (school_id = get_auth_school_id() AND get_auth_role() = 'administrator');
+
+-- 15. ANNOUNCEMENTS
+CREATE POLICY "announcements_select_published" ON public.announcements
+    FOR SELECT USING (
+        school_id = get_auth_school_id()
+        AND is_published = true
+        AND (
+            target_audience = 'all'
+            OR (target_audience = 'teachers' AND get_auth_role() IN ('administrator', 'principal', 'teacher'))
+            OR (target_audience = 'students' AND get_auth_role() = 'student')
+        )
+    );
+
+CREATE POLICY "announcements_manage_admin_principal" ON public.announcements
+    FOR ALL USING (school_id = get_auth_school_id() AND get_auth_role() IN ('administrator', 'principal'));
+
+-- 16. NOTIFICATIONS
+CREATE POLICY "notifications_select_update_own" ON public.notifications
+    FOR ALL USING (user_id = auth.uid());
+
+CREATE POLICY "notifications_insert_same_school" ON public.notifications
+    FOR INSERT WITH CHECK (school_id = get_auth_school_id());
+
+-- 17. AUDIT LOGS
+CREATE POLICY "audit_logs_select_admin" ON public.audit_logs
+    FOR SELECT USING (school_id = get_auth_school_id() AND get_auth_role() = 'administrator');
+
+CREATE POLICY "audit_logs_insert_authenticated" ON public.audit_logs
+    FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 
 -- ------------------------------------------------------------------------------
--- ANNOUNCEMENTS POLICIES
+-- 6. STORAGE BUCKET ROW LEVEL SECURITY POLICIES
 -- ------------------------------------------------------------------------------
-CREATE POLICY "Users can view announcements for their school"
-    ON announcements FOR SELECT
-    USING (school_id = get_user_school_id() AND is_published = true);
+INSERT INTO storage.buckets (id, name, public)
+VALUES 
+  ('school-logos', 'school-logos', true),
+  ('student-photos', 'student-photos', false),
+  ('report-documents', 'report-documents', false)
+ON CONFLICT (id) DO NOTHING;
 
-CREATE POLICY "Staff can manage announcements"
-    ON announcements FOR ALL
-    USING (school_id = get_user_school_id() AND get_user_role() IN ('administrator', 'principal', 'teacher'));
+ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 
--- ------------------------------------------------------------------------------
--- NOTIFICATIONS POLICIES
--- ------------------------------------------------------------------------------
-CREATE POLICY "Users can view and manage their own notifications"
-    ON notifications FOR ALL
-    USING (user_id = auth.uid());
+DROP POLICY IF EXISTS "school_logos_public_select" ON storage.objects;
+CREATE POLICY "school_logos_public_select" ON storage.objects
+    FOR SELECT USING (bucket_id = 'school-logos');
+
+DROP POLICY IF EXISTS "school_logos_admin_insert" ON storage.objects;
+CREATE POLICY "school_logos_admin_insert" ON storage.objects
+    FOR INSERT WITH CHECK (
+        bucket_id = 'school-logos'
+        AND get_auth_role() = 'administrator'
+    );
+
+DROP POLICY IF EXISTS "student_photos_select_staff_or_own" ON storage.objects;
+CREATE POLICY "student_photos_select_staff_or_own" ON storage.objects
+    FOR SELECT USING (
+        bucket_id = 'student-photos'
+        AND (
+            get_auth_role() IN ('administrator', 'principal', 'teacher')
+            OR owner = auth.uid()
+        )
+    );
+
+DROP POLICY IF EXISTS "report_documents_select_staff_or_own" ON storage.objects;
+CREATE POLICY "report_documents_select_staff_or_own" ON storage.objects
+    FOR SELECT USING (
+        bucket_id = 'report-documents'
+        AND (
+            get_auth_role() IN ('administrator', 'principal', 'teacher')
+            OR owner = auth.uid()
+        )
+    );

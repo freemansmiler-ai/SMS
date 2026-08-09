@@ -1,7 +1,12 @@
 "use client";
 
 import React, { useState } from "react";
-import { SubmittedResultBatch, approveResultBatch, returnResultBatch } from "@/lib/services/principal-approvals";
+import {
+  SubmittedResultBatch,
+  approveResultBatch,
+  returnResultBatch,
+  publishApprovedResultBatch,
+} from "@/lib/services/principal-approvals";
 import {
   Dialog,
   DialogContent,
@@ -14,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FileCheck, CheckCircle2, RotateCcw, ShieldCheck, AlertCircle, MessageSquare } from "lucide-react";
+import { FileCheck, CheckCircle2, RotateCcw, ShieldCheck, AlertCircle, MessageSquare, Send } from "lucide-react";
 
 interface ReviewScoresModalProps {
   batch: SubmittedResultBatch | null;
@@ -53,7 +58,7 @@ export const ReviewScoresModal: React.FC<ReviewScoresModalProps> = ({
 
   const handleReturn = async () => {
     if (!comments.trim()) {
-      setErrorMsg("Review comments are required when returning results for correction.");
+      setErrorMsg("A mandatory return reason is required when returning results for correction.");
       return;
     }
 
@@ -68,6 +73,22 @@ export const ReviewScoresModal: React.FC<ReviewScoresModalProps> = ({
     }
 
     batch.status = "returned";
+    onActionComplete();
+    onOpenChange(false);
+  };
+
+  const handlePublish = async () => {
+    setLoading(true);
+    setErrorMsg(null);
+    const res = await publishApprovedResultBatch(batch.subjectId, batch.classId);
+    setLoading(false);
+
+    if (!res.success) {
+      setErrorMsg(res.error || "Failed to publish results.");
+      return;
+    }
+
+    batch.status = "published";
     onActionComplete();
     onOpenChange(false);
   };
@@ -117,9 +138,8 @@ export const ReviewScoresModal: React.FC<ReviewScoresModalProps> = ({
                 <TableRow>
                   <TableHead>Student Name</TableHead>
                   <TableHead>Code</TableHead>
-                  <TableHead>Class Test (30)</TableHead>
-                  <TableHead>Project (20)</TableHead>
-                  <TableHead>Exam (50)</TableHead>
+                  <TableHead>CA Score</TableHead>
+                  <TableHead>Exam Score</TableHead>
                   <TableHead>Total (100)</TableHead>
                   <TableHead>Grade</TableHead>
                 </TableRow>
@@ -131,10 +151,11 @@ export const ReviewScoresModal: React.FC<ReviewScoresModalProps> = ({
                       {item.studentName}
                     </TableCell>
                     <TableCell className="text-xs font-mono text-slate-500">{item.studentCode}</TableCell>
-                    <TableCell className="text-xs font-medium">{item.classScore}</TableCell>
-                    <TableCell className="text-xs font-medium">{item.projectScore}</TableCell>
-                    <TableCell className="text-xs font-medium">{item.examScore}</TableCell>
-                    <TableCell className="text-xs font-bold">{item.totalScore}</TableCell>
+                    <TableCell className="text-xs font-medium">
+                      {item.continuousAssessmentScore ?? item.classScore ?? 0}
+                    </TableCell>
+                    <TableCell className="text-xs font-medium">{item.examScore ?? 0}</TableCell>
+                    <TableCell className="text-xs font-bold">{item.totalScore ?? 0}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className="font-bold text-[10px]">
                         {item.grade}
@@ -146,17 +167,17 @@ export const ReviewScoresModal: React.FC<ReviewScoresModalProps> = ({
             </Table>
           </div>
 
-          {/* Executive Review Comments */}
+          {/* Executive Review Comments / Return Reason Input */}
           <div className="space-y-1">
             <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
               <MessageSquare className="h-3.5 w-3.5 text-slate-400" />
-              <span>Headmaster Review Comments / Feedback</span>
+              <span>Headmaster Review Comments / Correction Reason (Mandatory if returning) *</span>
             </label>
             <textarea
               rows={2}
               value={comments}
               onChange={(e) => setComments(e.target.value)}
-              placeholder="Add feedback for teacher or approval notes..."
+              placeholder="Enter approval notes or mandatory return reason for correction..."
               className="w-full rounded-md border border-slate-200 bg-white p-2 text-xs shadow-2xs dark:border-slate-800 dark:bg-slate-900 text-slate-800 dark:text-slate-200"
             />
           </div>
@@ -164,16 +185,16 @@ export const ReviewScoresModal: React.FC<ReviewScoresModalProps> = ({
           {/* Security Audit Trail Notice */}
           <div className="p-2.5 rounded-md bg-slate-50 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 text-[11px] text-slate-500 flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-slate-600 shrink-0" />
-            <span>Audit Trail Active: Executive approvals or returns are recorded in PostgreSQL audit logs.</span>
+            <span>Audit Trail Active: Executive approvals, returns, and publications are recorded in audit logs.</span>
           </div>
         </div>
 
-        <DialogFooter className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between sm:justify-between">
+        <DialogFooter className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
           <Button
             type="button"
             variant="destructive"
             size="sm"
-            disabled={loading}
+            disabled={loading || batch.status === "published"}
             onClick={handleReturn}
             className="gap-1.5 font-semibold text-xs"
           >
@@ -185,16 +206,29 @@ export const ReviewScoresModal: React.FC<ReviewScoresModalProps> = ({
             <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button
-              type="button"
-              size="sm"
-              disabled={loading}
-              onClick={handleApprove}
-              className="gap-1.5 font-semibold text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-            >
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              <span>Approve Results</span>
-            </Button>
+            {batch.status === "approved" ? (
+              <Button
+                type="button"
+                size="sm"
+                disabled={loading}
+                onClick={handlePublish}
+                className="gap-1.5 font-semibold text-xs bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                <Send className="h-3.5 w-3.5" />
+                <span>Publish Results</span>
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                disabled={loading || (batch.status as string) === "approved" || (batch.status as string) === "published"}
+                onClick={handleApprove}
+                className="gap-1.5 font-semibold text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span>Approve Results</span>
+              </Button>
+            )}
           </div>
         </DialogFooter>
       </DialogContent>

@@ -16,14 +16,18 @@ export interface SupabaseEnvConfig {
 
 export function getSupabaseEnvConfig(): SupabaseEnvConfig {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+  const supabaseAnonKey =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    "";
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
   const isConfigured = Boolean(
     supabaseUrl &&
       supabaseAnonKey &&
       !supabaseUrl.includes("placeholder-project") &&
-      !supabaseAnonKey.includes("your-anon-key")
+      !supabaseAnonKey.includes("your-anon-key") &&
+      !supabaseAnonKey.includes("placeholder")
   );
 
   const isPlaceholder = Boolean(

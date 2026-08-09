@@ -1,4 +1,5 @@
 import { createBrowserClient, getSupabaseEnvConfig } from "@/lib/supabase";
+import { recordAuditLog } from "./audit-logs";
 
 export type ResultStatus = "draft" | "submitted" | "under_review" | "approved" | "published" | "returned";
 
@@ -11,16 +12,20 @@ export interface ResultEntry {
   subjectName: string;
   classId: string;
   className: string;
+  academicYearId?: string;
+  academicYearName?: string;
+  academicYear?: string;
   termId: string;
   termName: string;
-  academicYear: string;
-  classScore: number;   // Max 30 (Continuous Assessment / Class Tests)
-  projectScore: number; // Max 20 (Project Work Assessment)
-  examScore: number;    // Max 50 (End of Term Examination)
-  totalScore: number;   // Max 100 (classScore + projectScore + examScore)
-  grade: string;        // A1, B2, B3, C4, C5, C6, D7, E8, F9
+  continuousAssessmentScore?: number; // Max 40 (Continuous Assessment / CA)
+  examScore?: number;                 // Max 60 (End of Term Examination)
+  totalScore?: number;                // Max 100 (CA + Exam)
+  grade: string;                     // A1, B2, B3, C4, C5, C6, D7, E8, F9
   remarks: string;
   status: ResultStatus;
+  // Legacy aliases for UI backwards compatibility
+  classScore?: number;
+  projectScore?: number;
 }
 
 export function calculateGESGrade(total: number): { grade: string; remarks: string } {
@@ -35,7 +40,12 @@ export function calculateGESGrade(total: number): { grade: string; remarks: stri
   return { grade: "F9", remarks: "Fail" };
 }
 
-export async function fetchTeacherResults(filters?: { subjectId?: string; classId?: string }): Promise<ResultEntry[]> {
+export async function fetchTeacherResults(filters?: {
+  subjectId?: string;
+  classId?: string;
+  academicYearId?: string;
+  termId?: string;
+}): Promise<ResultEntry[]> {
   const config = getSupabaseEnvConfig();
 
   // Initial Mock Fallback for GES Gradebook
@@ -50,16 +60,18 @@ export async function fetchTeacherResults(filters?: { subjectId?: string; classI
         subjectName: "Core Mathematics",
         classId: "class-basic8a",
         className: "Basic 8 - Section A",
-        termId: "term-1",
+        academicYearId: "ay-2026",
+        academicYearName: "2026/2027 Academic Year",
+        termId: "term-1-2026",
         termName: "Term 1",
-        academicYear: "2026/2027",
-        classScore: 26,
-        projectScore: 18,
-        examScore: 40,
+        continuousAssessmentScore: 34,
+        examScore: 50,
         totalScore: 84,
         grade: "A1",
         remarks: "Excellent",
         status: "draft",
+        classScore: 24,
+        projectScore: 10,
       },
       {
         id: "res-102",
@@ -70,16 +82,18 @@ export async function fetchTeacherResults(filters?: { subjectId?: string; classI
         subjectName: "Core Mathematics",
         classId: "class-basic8a",
         className: "Basic 8 - Section A",
-        termId: "term-1",
+        academicYearId: "ay-2026",
+        academicYearName: "2026/2027 Academic Year",
+        termId: "term-1-2026",
         termName: "Term 1",
-        academicYear: "2026/2027",
-        classScore: 22,
-        projectScore: 15,
-        examScore: 34,
+        continuousAssessmentScore: 28,
+        examScore: 43,
         totalScore: 71,
         grade: "B3",
         remarks: "Good",
         status: "draft",
+        classScore: 18,
+        projectScore: 10,
       },
       {
         id: "res-103",
@@ -90,16 +104,18 @@ export async function fetchTeacherResults(filters?: { subjectId?: string; classI
         subjectName: "Integrated Science",
         classId: "class-basic9b",
         className: "Basic 9 - Section B",
-        termId: "term-1",
+        academicYearId: "ay-2026",
+        academicYearName: "2026/2027 Academic Year",
+        termId: "term-1-2026",
         termName: "Term 1",
-        academicYear: "2026/2027",
-        classScore: 24,
-        projectScore: 16,
-        examScore: 36,
+        continuousAssessmentScore: 30,
+        examScore: 46,
         totalScore: 76,
         grade: "B2",
         remarks: "Very Good",
         status: "submitted",
+        classScore: 20,
+        projectScore: 10,
       },
     ];
 
@@ -115,54 +131,83 @@ export async function fetchTeacherResults(filters?: { subjectId?: string; classI
 
   const supabase = createBrowserClient();
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase.from("results") as any)
-      .select(`
-        id,
-        student_id,
-        subject_id,
-        class_id,
-        term_id,
-        class_score,
-        project_score,
-        exam_score,
-        total_score,
-        grade,
-        remarks,
-        status,
-        students:student_id (
-          student_code,
-          profiles:profile_id (first_name, last_name)
-        ),
-        subjects:subject_id (name),
-        classes:class_id (name)
-      `);
+    // Verify authenticated teacher identity
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: profile } = await (supabase.from("profiles") as any)
+      .select("school_id, role")
+      .eq("id", user.id)
+      .single();
+
+    if (profile?.role !== "teacher") return [];
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let query = (supabase.from("results") as any).select(`
+      id,
+      student_id,
+      subject_id,
+      class_id,
+      academic_year_id,
+      term_id,
+      continuous_assessment_score,
+      examination_score,
+      total_score,
+      grade,
+      teacher_remark,
+      remarks,
+      status,
+      students:student_id (
+        student_code,
+        profiles:profile_id (first_name, last_name)
+      ),
+      subjects:subject_id (name),
+      classes:class_id (name),
+      academic_years:academic_year_id (name),
+      terms:term_id (name)
+    `);
+
+    if (filters?.subjectId) query = query.eq("subject_id", filters.subjectId);
+    if (filters?.classId) query = query.eq("class_id", filters.classId);
+    if (filters?.academicYearId) query = query.eq("academic_year_id", filters.academicYearId);
+    if (filters?.termId) query = query.eq("term_id", filters.termId);
+
+    const { data, error } = await query;
     if (error || !data) return [];
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return data.map((r: any) => ({
-      id: r.id,
-      studentId: r.student_id,
-      studentName: r.students?.profiles
-        ? `${r.students.profiles.first_name} ${r.students.profiles.last_name}`
-        : "Student",
-      studentCode: r.students?.student_code || "GES-STU",
-      subjectId: r.subject_id,
-      subjectName: r.subjects?.name || "Subject",
-      classId: r.class_id,
-      className: r.classes?.name || "Basic Class",
-      termId: r.term_id,
-      termName: "Term 1",
-      academicYear: "2026/2027",
-      classScore: Number(r.class_score || 0),
-      projectScore: Number(r.project_score || 0),
-      examScore: Number(r.exam_score || 0),
-      totalScore: Number(r.total_score || 0),
-      grade: r.grade || "F9",
-      remarks: r.remarks || "Pending",
-      status: r.status || "draft",
-    }));
+    return data.map((r: any) => {
+      const caScore = Number(r.continuous_assessment_score || 0);
+      const exScore = Number(r.examination_score || 0);
+      const totScore = caScore + exScore;
+      const { grade, remarks } = calculateGESGrade(totScore);
+
+      return {
+        id: r.id,
+        studentId: r.student_id,
+        studentName: r.students?.profiles
+          ? `${r.students.profiles.first_name} ${r.students.profiles.last_name}`
+          : "Student",
+        studentCode: r.students?.student_code || "GES-STU",
+        subjectId: r.subject_id,
+        subjectName: r.subjects?.name || "Subject",
+        classId: r.class_id,
+        className: r.classes?.name || "Basic Class",
+        academicYearId: r.academic_year_id,
+        academicYearName: r.academic_years?.name || "2026/2027",
+        termId: r.term_id,
+        termName: r.terms?.name || "Term 1",
+        continuousAssessmentScore: caScore,
+        examScore: exScore,
+        totalScore: totScore,
+        grade: r.grade || grade,
+        remarks: r.teacher_remark || r.remarks || remarks,
+        status: (r.status as ResultStatus) || "draft",
+        classScore: caScore,
+        projectScore: 0,
+      };
+    });
   } catch {
     return [];
   }
@@ -176,38 +221,120 @@ export async function saveResultDraft(entry: Partial<ResultEntry>): Promise<{ su
 
   const supabase = createBrowserClient();
   try {
-    // Score range validation: Class (0-30), Project (0-20), Exam (0-50)
-    if ((entry.classScore ?? 0) < 0 || (entry.classScore ?? 0) > 30) {
-      return { success: false, error: "Continuous Assessment Class Score must be between 0 and 30." };
-    }
-    if ((entry.projectScore ?? 0) < 0 || (entry.projectScore ?? 0) > 20) {
-      return { success: false, error: "Project Work Score must be between 0 and 20." };
-    }
-    if ((entry.examScore ?? 0) < 0 || (entry.examScore ?? 0) > 50) {
-      return { success: false, error: "End of Term Exam Score must be between 0 and 50." };
+    // 1. Authenticate teacher & school scope
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Authentication required to enter student scores." };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: adminProfile } = await (supabase.from("profiles") as any)
+      .select("school_id, role")
+      .eq("id", user.id)
+      .single();
+
+    if (adminProfile?.role !== "teacher") {
+      return { success: false, error: "UNAUTHORIZED: Only an assigned teacher can enter class scores." };
     }
 
-    const totalScore = (entry.classScore || 0) + (entry.projectScore || 0) + (entry.examScore || 0);
+    const schoolId = adminProfile.school_id;
+
+    // 2. Fetch teacher record
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: teacherRec } = await (supabase.from("teachers") as any)
+      .select("id")
+      .eq("profile_id", user.id)
+      .eq("school_id", schoolId)
+      .single();
+
+    if (!teacherRec) {
+      return { success: false, error: "UNAUTHORIZED: Teacher record not found." };
+    }
+
+    // 3. Strict Assignment Authorization Check
+    // Verify teacher is assigned to (subjectId, classId)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: assignment } = await (supabase.from("teacher_assignments") as any)
+      .select("id")
+      .eq("teacher_id", teacherRec.id)
+      .eq("subject_id", entry.subjectId)
+      .eq("class_id", entry.classId)
+      .eq("school_id", schoolId)
+      .limit(1)
+      .maybeSingle();
+
+    if (!assignment) {
+      return {
+        success: false,
+        error: "AUTHORIZATION REJECTED: You are not assigned to teach this subject in this class section.",
+      };
+    }
+
+    // 4. Score range validation
+    const caScore = entry.continuousAssessmentScore ?? entry.classScore ?? 0;
+    const examScore = entry.examScore ?? 0;
+
+    if (caScore < 0 || caScore > 100) {
+      return { success: false, error: "Continuous Assessment score must be between 0 and 100." };
+    }
+    if (examScore < 0 || examScore > 100) {
+      return { success: false, error: "Examination score must be between 0 and 100." };
+    }
+
+    const totalScore = caScore + examScore;
+    if (totalScore > 100) {
+      return { success: false, error: "Total generated score (CA + Exam) cannot exceed 100." };
+    }
+
     const { grade, remarks } = calculateGESGrade(totalScore);
 
-    // Upsert into Supabase `results` table
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase.from("results") as any).upsert({
-      id: entry.id && !entry.id.startsWith("res-") ? entry.id : undefined,
-      student_id: entry.studentId,
-      subject_id: entry.subjectId,
-      class_id: entry.classId,
-      term_id: entry.termId,
-      class_score: entry.classScore,
-      project_score: entry.projectScore,
-      exam_score: entry.examScore,
-      total_score: totalScore,
-      grade,
-      remarks,
-      status: "draft",
-    });
+    // 5. Existing Status Check (Cannot modify locked approved/published/submitted results)
+    if (entry.id && !entry.id.startsWith("res-")) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: existingRes } = await (supabase.from("results") as any)
+        .select("status")
+        .eq("id", entry.id)
+        .single();
 
-    if (error) return { success: false, error: error.message };
+      if (existingRes && ["submitted", "under_review", "approved", "published"].includes(existingRes.status)) {
+        return {
+          success: false,
+          error: `LOCKED RECORD: Results in '${existingRes.status}' status cannot be modified. Only draft or returned results may be edited by a teacher.`,
+        };
+      }
+    }
+
+    // 6. Upsert into Supabase `results` table under RLS
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: savedResult, error: upsertErr } = await (supabase.from("results") as any)
+      .upsert({
+        id: entry.id && !entry.id.startsWith("res-") ? entry.id : undefined,
+        school_id: schoolId,
+        student_id: entry.studentId,
+        subject_id: entry.subjectId,
+        teacher_id: teacherRec.id,
+        class_id: entry.classId,
+        academic_year_id: entry.academicYearId || undefined,
+        term_id: entry.termId || undefined,
+        continuous_assessment_score: caScore,
+        examination_score: examScore,
+        grade,
+        teacher_remark: entry.remarks || remarks,
+        status: "draft",
+      })
+      .select("id")
+      .single();
+
+    if (upsertErr || !savedResult) {
+      return { success: false, error: upsertErr?.message || "Failed to save draft result." };
+    }
+
+    // Audit log
+    await recordAuditLog(
+      entry.id ? "SCORE_MODIFICATION" : "SCORE_CREATION",
+      "results",
+      savedResult.id,
+      `Teacher (${user.id}) saved draft result for student ${entry.studentId} in subject ${entry.subjectId}`
+    );
+
     return { success: true };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Save draft failed";
@@ -215,7 +342,12 @@ export async function saveResultDraft(entry: Partial<ResultEntry>): Promise<{ su
   }
 }
 
-export async function submitResultBatch(subjectId: string, classId: string): Promise<{ success: boolean; error?: string }> {
+export async function submitResultBatch(
+  subjectId: string,
+  classId: string,
+  academicYearId?: string,
+  termId?: string
+): Promise<{ success: boolean; error?: string }> {
   const config = getSupabaseEnvConfig();
   if (config.isPlaceholder || !config.isConfigured) {
     return { success: true };
@@ -223,14 +355,63 @@ export async function submitResultBatch(subjectId: string, classId: string): Pro
 
   const supabase = createBrowserClient();
   try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Authentication required." };
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase.from("results") as any)
+    const { data: adminProfile } = await (supabase.from("profiles") as any)
+      .select("school_id, role")
+      .eq("id", user.id)
+      .single();
+
+    if (adminProfile?.role !== "teacher") {
+      return { success: false, error: "UNAUTHORIZED: Only an assigned teacher can submit results." };
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: teacherRec } = await (supabase.from("teachers") as any)
+      .select("id")
+      .eq("profile_id", user.id)
+      .single();
+
+    if (!teacherRec) return { success: false, error: "Teacher record not found." };
+
+    // Strict Assignment Check
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: assignment } = await (supabase.from("teacher_assignments") as any)
+      .select("id")
+      .eq("teacher_id", teacherRec.id)
+      .eq("subject_id", subjectId)
+      .eq("class_id", classId)
+      .limit(1)
+      .maybeSingle();
+
+    if (!assignment) {
+      return { success: false, error: "UNAUTHORIZED: You are not assigned to this subject/class." };
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let query = (supabase.from("results") as any)
       .update({ status: "submitted" })
       .eq("subject_id", subjectId)
       .eq("class_id", classId)
+      .eq("teacher_id", teacherRec.id)
       .in("status", ["draft", "returned"]);
 
+    if (academicYearId) query = query.eq("academic_year_id", academicYearId);
+    if (termId) query = query.eq("term_id", termId);
+
+    const { error } = await query;
     if (error) return { success: false, error: error.message };
+
+    // Audit log
+    await recordAuditLog(
+      "SCORE_SUBMISSION",
+      "results",
+      `${subjectId}_${classId}`,
+      `Teacher (${user.id}) submitted batch results for subject ${subjectId} in class ${classId}`
+    );
+
     return { success: true };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Batch submission failed";

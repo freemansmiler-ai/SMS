@@ -1,10 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { RoleProvider } from "@/context/role-context";
+import { useAuth } from "@/context/auth-context";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
+import { ForcePasswordChangeModal } from "@/components/auth/force-password-change-modal";
 import { UserRole, NavSection, UserProfile } from "@/types";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 export interface DashboardShellProps {
@@ -21,8 +25,39 @@ const DashboardShellInner: React.FC<DashboardShellProps> = ({
   breadcrumbs,
   children,
 }) => {
+  const router = useRouter();
+  const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
+  const { profile, role: activeRole, loading, mustChangePassword, setMustChangePassword } = useAuth();
+
+  useEffect(() => {
+    if (!loading) {
+      // Unauthenticated access check
+      if (!profile) {
+        router.replace(`/login?redirectTo=${encodeURIComponent(pathname)}`);
+        return;
+      }
+
+      // Role permission check
+      if (role && profile.role !== role && profile.role !== "administrator") {
+        router.replace(`/${profile.role}`);
+      }
+    }
+  }, [loading, profile, role, pathname, router]);
+
+  if (loading || !profile) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6 flex flex-col items-center justify-center space-y-4">
+        <div className="w-full max-w-md space-y-4 text-center">
+          <Skeleton className="h-12 w-12 rounded-xl mx-auto" />
+          <Skeleton className="h-6 w-48 mx-auto" />
+          <Skeleton className="h-4 w-64 mx-auto" />
+          <Skeleton className="h-32 w-full rounded-lg" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50/70 dark:bg-slate-950 font-sans text-slate-900 antialiased dark:text-slate-100 overflow-x-hidden">
@@ -34,6 +69,12 @@ const DashboardShellInner: React.FC<DashboardShellProps> = ({
         />
       )}
 
+      {/* Forced Password Change Modal for Temporary Credentials */}
+      <ForcePasswordChangeModal
+        open={mustChangePassword}
+        onSuccess={() => setMustChangePassword(false)}
+      />
+
       {/* Reusable Sidebar Navigation */}
       <Sidebar
         collapsed={sidebarCollapsed}
@@ -41,7 +82,7 @@ const DashboardShellInner: React.FC<DashboardShellProps> = ({
         isMobileOpen={mobileSidebarOpen}
         onCloseMobile={() => setMobileSidebarOpen(false)}
         customNavSections={navSections}
-        roleOverride={role}
+        roleOverride={role || activeRole}
       />
 
       {/* Main Layout Container */}

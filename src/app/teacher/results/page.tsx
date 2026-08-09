@@ -10,7 +10,7 @@ import {
   ResultEntry,
   ResultStatus,
 } from "@/lib/services/teacher-results";
-import { fetchTeacherDashboardData } from "@/lib/services/teacher-dashboard";
+import { fetchTeacherDashboardData, AssignedSubjectSummary } from "@/lib/services/teacher-dashboard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -53,10 +53,10 @@ export default function TeacherResultsPage() {
   useEffect(() => {
     const loadAssignments = async () => {
       const dash = await fetchTeacherDashboardData();
-      const subs = dash.assignedSubjects.map((s) => ({
-        id: s.id,
-        name: s.name,
-        className: s.className,
+      const subs = dash.subjectsSummary.map((s: AssignedSubjectSummary) => ({
+        id: s.subjectId,
+        name: s.subjectName,
+        className: s.classNames.join(", "),
       }));
       setAssignedSubjects(subs);
       if (subs.length > 0) {
@@ -95,9 +95,9 @@ export default function TeacherResultsPage() {
     setResults((prev) =>
       prev.map((item) => {
         if (item.id !== id) return item;
-        const newClass = field === "classScore" ? num : item.classScore;
-        const newProject = field === "projectScore" ? num : item.projectScore;
-        const newExam = field === "examScore" ? num : item.examScore;
+        const newClass = (field === "classScore" ? num : item.classScore) ?? 0;
+        const newProject = (field === "projectScore" ? num : item.projectScore) ?? 0;
+        const newExam = (field === "examScore" ? num : item.examScore) ?? 0;
         const newTotal = newClass + newProject + newExam;
         const { grade, remarks } = calculateGESGrade(newTotal);
 

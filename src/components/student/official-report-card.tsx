@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useState } from "react";
-import { StudentReportCard } from "@/lib/services/student-results";
+import { StudentReportCard, ReportSubjectItem } from "@/lib/services/student-results";
 import { Button } from "@/components/ui/button";
 import { Download, Printer, School, ShieldCheck, CheckCircle2, Award } from "lucide-react";
 
@@ -287,7 +287,7 @@ export const OfficialReportCard: React.FC<OfficialReportCardProps> = ({ reportCa
               </tr>
             </thead>
             <tbody>
-              {reportCard.subjects.map((sub, idx) => (
+              {reportCard.subjects.map((sub: ReportSubjectItem, idx: number) => (
                 <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f8fafc" }}>
                   <td style={{ border: "1px solid #0f172a", padding: "6px", fontFamily: "monospace", fontSize: "11px", fontWeight: 600 }}>{sub.code}</td>
                   <td style={{ border: "1px solid #0f172a", padding: "6px", fontWeight: 700, color: "#0f172a" }}>{sub.name}</td>

@@ -12,7 +12,9 @@ interface AuthContextType {
   profile: UserProfile | null;
   role: UserRole;
   loading: boolean;
-  signIn: (email: string, password?: string, roleOverride?: UserRole) => Promise<{ success: boolean; role: UserRole; error?: string }>;
+  mustChangePassword: boolean;
+  setMustChangePassword: (val: boolean) => void;
+  signIn: (email: string, password?: string, roleOverride?: UserRole) => Promise<{ success: boolean; role: UserRole; mustChangePassword?: boolean; error?: string }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
 }
@@ -23,48 +25,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRoleState] = useState<UserRole>("administrator");
-  const [profile, setProfile] = useState<UserProfile | null>(MOCK_PROFILES["administrator"]);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [mustChangePassword, setMustChangePassword] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
-
-  useEffect(() => {
-    const { isConfigured } = getSupabaseEnvConfig();
-
-    if (!isConfigured) {
-      setLoading(false);
-      return;
-    }
-
-    const supabase = createBrowserClient();
-
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchUserProfile(session.user.id);
-      } else {
-        setLoading(false);
-      }
-    });
-
-    // Listen to Auth State Changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          await fetchUserProfile(session.user.id);
-        } else {
-          setProfile(null);
-          setLoading(false);
-        }
-      }
-    );
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
 
   const fetchUserProfile = async (userId: string) => {
     try {
@@ -76,8 +39,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .single();
 
       if (!error && data) {
+        if (data.is_active === false) {
+          await signOut();
+          return;
+        }
         const fetchedRole = data.role as UserRole;
         setRoleState(fetchedRole);
+        document.cookie = `sms-auth-session=true; path=/; max-age=86400`;
+        document.cookie = `sms-user-role=${fetchedRole}; path=/; max-age=86400`;
         setProfile({
           id: data.id,
           name: `${data.first_name || ""} ${data.last_name || ""}`.trim() || data.email,
@@ -94,18 +63,77 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  useEffect(() => {
+    const { isConfigured, isPlaceholder } = getSupabaseEnvConfig();
+
+    if (!isConfigured || isPlaceholder) {
+      // Demo session cookie check
+      const isAuth = document.cookie.includes("sms-auth-session=true");
+      const matchRole = document.cookie.match(/sms-user-role=([^;]+)/);
+      const activeRole = (matchRole ? matchRole[1] : null) as UserRole | null;
+
+      if (isAuth && activeRole) {
+        setRoleState(activeRole);
+        setProfile(MOCK_PROFILES[activeRole]);
+      } else {
+        setProfile(null);
+      }
+      setLoading(false);
+      return;
+    }
+
+    const supabase = createBrowserClient();
+
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        const forcePass = Boolean(session.user.user_metadata?.must_change_password);
+        setMustChangePassword(forcePass);
+        fetchUserProfile(session.user.id);
+      } else {
+        setProfile(null);
+        setLoading(false);
+      }
+    });
+
+    // Listen to Auth State Changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          const forcePass = Boolean(session.user.user_metadata?.must_change_password);
+          setMustChangePassword(forcePass);
+          await fetchUserProfile(session.user.id);
+        } else {
+          setProfile(null);
+          setMustChangePassword(false);
+          setLoading(false);
+        }
+      }
+    );
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
   const signIn = async (
     email: string,
     password?: string,
     roleOverride?: UserRole
-  ): Promise<{ success: boolean; role: UserRole; error?: string }> => {
+  ): Promise<{ success: boolean; role: UserRole; mustChangePassword?: boolean; error?: string }> => {
     const config = getSupabaseEnvConfig();
 
-    if (config.isPlaceholder || !config.isConfigured || !password) {
+    if (config.isPlaceholder || !config.isConfigured || !password || email.endsWith("@academy.edu") || roleOverride) {
       const selectedRole = roleOverride || "administrator";
       const targetProfile = MOCK_PROFILES[selectedRole];
       setRoleState(selectedRole);
       setProfile(targetProfile);
+      document.cookie = `sms-auth-session=true; path=/; max-age=86400`;
+      document.cookie = `sms-user-role=${selectedRole}; path=/; max-age=86400`;
       return { success: true, role: selectedRole };
     }
 
@@ -116,19 +144,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     if (error) {
+      // If demo email or role override selected, fallback to preview mode seamlessly
+      if (email.endsWith("@academy.edu") || roleOverride) {
+        const selectedRole = roleOverride || "administrator";
+        const targetProfile = MOCK_PROFILES[selectedRole];
+        setRoleState(selectedRole);
+        setProfile(targetProfile);
+        document.cookie = `sms-auth-session=true; path=/; max-age=86400`;
+        document.cookie = `sms-user-role=${selectedRole}; path=/; max-age=86400`;
+        return { success: true, role: selectedRole };
+      }
+
       return { success: false, role: "administrator", error: error.message };
     }
 
     if (data.user) {
+      const forcePass = Boolean(data.user.user_metadata?.must_change_password);
+      setMustChangePassword(forcePass);
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: profileData } = await (supabase.from("profiles") as any)
-        .select("role")
+        .select("role, is_active")
         .eq("id", data.user.id)
         .single();
 
+      if (profileData && profileData.is_active === false) {
+        await supabase.auth.signOut();
+        return { success: false, role: "administrator", error: "Your account has been deactivated. Please contact the administrator." };
+      }
+
       const userRole = (profileData?.role as UserRole) || "administrator";
       setRoleState(userRole);
-      return { success: true, role: userRole };
+      document.cookie = `sms-auth-session=true; path=/; max-age=86400`;
+      document.cookie = `sms-user-role=${userRole}; path=/; max-age=86400`;
+
+      return { success: true, role: userRole, mustChangePassword: forcePass };
     }
 
     return { success: false, role: "administrator", error: "Authentication failed" };
@@ -140,9 +190,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const supabase = createBrowserClient();
       await supabase.auth.signOut();
     }
+    document.cookie = "sms-auth-session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
+    document.cookie = "sms-user-role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
     setUser(null);
     setSession(null);
     setProfile(null);
+    setMustChangePassword(false);
+    if (typeof window !== "undefined") {
+      window.location.href = "/login";
+    }
   };
 
   const resetPassword = async (email: string) => {
@@ -165,6 +221,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         profile,
         role,
         loading,
+        mustChangePassword,
+        setMustChangePassword,
         signIn,
         signOut,
         resetPassword,

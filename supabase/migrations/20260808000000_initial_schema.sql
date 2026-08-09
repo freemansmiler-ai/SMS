@@ -11,6 +11,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ------------------------------------------------------------------------------
 CREATE TYPE user_role AS ENUM ('administrator', 'principal', 'teacher', 'student');
 CREATE TYPE attendance_status AS ENUM ('present', 'absent', 'late', 'excused');
+CREATE TYPE result_status AS ENUM ('draft', 'submitted', 'under_review', 'returned', 'approved', 'published');
 CREATE TYPE announcement_target AS ENUM ('all', 'teachers', 'students', 'parents');
 
 -- ------------------------------------------------------------------------------
@@ -165,7 +166,7 @@ CREATE TABLE subjects (
 );
 
 -- ------------------------------------------------------------------------------
--- 10. TEACHER ASSIGNMENTS
+-- 10. TEACHER ASSIGNMENTS (Teacher -> Subject -> Class -> Academic Year -> Term)
 -- ------------------------------------------------------------------------------
 CREATE TABLE teacher_assignments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -173,14 +174,15 @@ CREATE TABLE teacher_assignments (
     teacher_id UUID NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
     subject_id UUID NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
     class_id UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+    academic_year_id UUID NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
     term_id UUID NOT NULL REFERENCES terms(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uk_teacher_assignment UNIQUE (teacher_id, subject_id, class_id, term_id)
+    CONSTRAINT uk_teacher_assignment UNIQUE (teacher_id, subject_id, class_id, academic_year_id, term_id)
 );
 
 -- ------------------------------------------------------------------------------
--- 11. STUDENT ENROLLMENTS
+-- 11. STUDENT ENROLLMENTS (Historical Class Preservation Across Academic Years)
 -- ------------------------------------------------------------------------------
 CREATE TABLE student_enrollments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -203,18 +205,25 @@ CREATE TABLE results (
     school_id UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
     student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
     subject_id UUID NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+    teacher_id UUID REFERENCES teachers(id) ON DELETE SET NULL,
     class_id UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+    academic_year_id UUID NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
     term_id UUID NOT NULL REFERENCES terms(id) ON DELETE CASCADE,
-    assessment_name VARCHAR(100) NOT NULL,
-    score NUMERIC(5,2) NOT NULL,
-    max_score NUMERIC(5,2) NOT NULL DEFAULT 100.00,
+    continuous_assessment_score NUMERIC(5,2) DEFAULT 0.00,
+    examination_score NUMERIC(5,2) DEFAULT 0.00,
+    total_score NUMERIC(5,2) GENERATED ALWAYS AS (continuous_assessment_score + examination_score) STORED,
     grade VARCHAR(10),
-    remarks TEXT,
-    created_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
+    teacher_remark TEXT,
+    principal_remark TEXT,
+    status result_status NOT NULL DEFAULT 'draft',
+    submitted_at TIMESTAMPTZ,
+    approved_at TIMESTAMPTZ,
+    published_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uk_student_result UNIQUE (student_id, subject_id, term_id, assessment_name),
-    CONSTRAINT chk_score_valid CHECK (score >= 0 AND score <= max_score)
+    CONSTRAINT uk_student_result_subject UNIQUE (student_id, subject_id, class_id, term_id),
+    CONSTRAINT chk_ca_score CHECK (continuous_assessment_score >= 0 AND continuous_assessment_score <= 100),
+    CONSTRAINT chk_exam_score CHECK (examination_score >= 0 AND examination_score <= 100)
 );
 
 -- ------------------------------------------------------------------------------
@@ -225,6 +234,9 @@ CREATE TABLE attendance (
     school_id UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
     student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
     class_id UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+    teacher_id UUID REFERENCES teachers(id) ON DELETE SET NULL,
+    academic_year_id UUID NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
+    term_id UUID NOT NULL REFERENCES terms(id) ON DELETE CASCADE,
     date DATE NOT NULL,
     status attendance_status NOT NULL DEFAULT 'present',
     remarks TEXT,
@@ -307,9 +319,9 @@ CREATE INDEX idx_students_school ON students(school_id);
 CREATE INDEX idx_teachers_school ON teachers(school_id);
 CREATE INDEX idx_classes_school_year ON classes(school_id, academic_year_id);
 CREATE INDEX idx_subjects_school ON subjects(school_id);
-CREATE INDEX idx_teacher_assignments_lookup ON teacher_assignments(school_id, class_id, term_id);
+CREATE INDEX idx_teacher_assignments_lookup ON teacher_assignments(school_id, class_id, term_id, academic_year_id);
 CREATE INDEX idx_student_enrollments_lookup ON student_enrollments(school_id, class_id, academic_year_id);
-CREATE INDEX idx_results_lookup ON results(school_id, student_id, term_id);
+CREATE INDEX idx_results_lookup ON results(school_id, student_id, term_id, academic_year_id);
 CREATE INDEX idx_attendance_lookup ON attendance(school_id, class_id, date);
 CREATE INDEX idx_timetables_lookup ON timetables(school_id, class_id, day_of_week);
 CREATE INDEX idx_announcements_school ON announcements(school_id, published_at DESC);
