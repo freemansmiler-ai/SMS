@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useRole } from "@/context/role-context";
 import { useAuth } from "@/context/auth-context";
 import { ROLE_LABELS } from "@/constants/navigation";
-import { RoleSwitcher } from "@/components/layout/role-switcher";
+
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -114,8 +114,7 @@ export const Header: React.FC<HeaderProps> = ({
           <span>2026/2027 Term 1</span>
         </div>
 
-        {/* Role Switcher */}
-        <RoleSwitcher />
+
 
         {/* Notifications Area */}
         <DropdownMenu>
@@ -196,14 +195,20 @@ export const Header: React.FC<HeaderProps> = ({
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              onClick={() => router.push(`/${activeRole}/profile`)}
+              onClick={() => {
+                const basePath = activeRole === "administrator" ? "/admin" : `/${activeRole}`;
+                router.push(`${basePath}/profile`);
+              }}
               className="gap-2 text-xs cursor-pointer"
             >
               <User className="h-3.5 w-3.5 text-slate-500" />
               <span>My Profile</span>
             </DropdownMenuItem>
             <DropdownMenuItem
-              onClick={() => router.push(`/${activeRole}/profile`)}
+              onClick={() => {
+                const basePath = activeRole === "administrator" ? "/admin" : `/${activeRole}`;
+                router.push(`${basePath}/profile`);
+              }}
               className="gap-2 text-xs cursor-pointer"
             >
               <Settings className="h-3.5 w-3.5 text-slate-500" />

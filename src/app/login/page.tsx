@@ -4,13 +4,11 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
-import { UserRole } from "@/types";
-import { ROLE_LABELS } from "@/constants/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { School, LogIn, AlertCircle, Shield, Check } from "lucide-react";
+import { School, LogIn, AlertCircle } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -18,7 +16,6 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [selectedRole, setSelectedRole] = useState<UserRole>("administrator");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -27,15 +24,14 @@ export default function LoginPage() {
     setLoading(true);
     setErrorMsg(null);
 
-    // 10-second safety timeout to prevent UI hanging indefinitely
     const timeoutId = setTimeout(() => {
       setLoading(false);
       setErrorMsg("Authentication request timed out. Please check your network connection and try again.");
     }, 10000);
 
     try {
-      const loginEmail = email.trim() || `${selectedRole}@academy.edu`;
-      const result = await signIn(loginEmail, password, email.trim() ? undefined : selectedRole);
+      const cleanEmail = email.trim();
+      const result = await signIn(cleanEmail, password);
       clearTimeout(timeoutId);
 
       if (!result.success) {
@@ -90,7 +86,7 @@ export default function LoginPage() {
           <CardHeader className="p-6 pb-4">
             <CardTitle className="text-base font-semibold">Sign In to Your Account</CardTitle>
             <CardDescription className="text-xs">
-              Enter your credentials to access role-specific dashboards.
+              Enter your Supabase credentials to access your dashboard.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-6 pt-0 space-y-4">
@@ -100,34 +96,6 @@ export default function LoginPage() {
                 <AlertDescription className="text-xs">{errorMsg}</AlertDescription>
               </Alert>
             )}
-
-            {/* Role Demo Quick Selector */}
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 flex items-center gap-1">
-                <Shield className="h-3 w-3 text-slate-400" />
-                <span>Quick Role Selection (Preview Mode)</span>
-              </label>
-              <div className="grid grid-cols-2 gap-1.5">
-                {(["administrator", "principal", "teacher", "student"] as UserRole[]).map((r) => (
-                  <button
-                    type="button"
-                    key={r}
-                    onClick={() => {
-                      setSelectedRole(r);
-                      setEmail(`${r}@academy.edu`);
-                    }}
-                    className={`flex items-center justify-between px-2.5 py-1.5 rounded-md border text-xs text-left transition-colors ${
-                      selectedRole === r
-                        ? "border-slate-900 bg-slate-900 text-slate-50 dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900 font-semibold"
-                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
-                    }`}
-                  >
-                    <span>{ROLE_LABELS[r].badge}</span>
-                    {selectedRole === r && <Check className="h-3 w-3" />}
-                  </button>
-                ))}
-              </div>
-            </div>
 
             <form onSubmit={handleLogin} className="space-y-3 pt-2">
               <div className="space-y-1">
@@ -139,7 +107,7 @@ export default function LoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder={`${selectedRole}@academy.edu`}
+                  placeholder="admin@codivex.tech"
                   className="h-9 text-xs"
                 />
               </div>
@@ -158,6 +126,7 @@ export default function LoginPage() {
                 </div>
                 <Input
                   type="password"
+                  required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
@@ -171,7 +140,7 @@ export default function LoginPage() {
                 className="w-full h-9 text-xs gap-1.5 font-semibold mt-2"
               >
                 <LogIn className="h-3.5 w-3.5" />
-                <span>{loading ? "Authenticating..." : `Sign In as ${ROLE_LABELS[selectedRole].badge}`}</span>
+                <span>{loading ? "Authenticating..." : "Sign In"}</span>
               </Button>
             </form>
           </CardContent>

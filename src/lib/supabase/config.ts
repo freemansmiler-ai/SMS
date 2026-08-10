@@ -25,14 +25,13 @@ export function getSupabaseEnvConfig(): SupabaseEnvConfig {
   const isConfigured = Boolean(
     supabaseUrl &&
       supabaseAnonKey &&
+      !supabaseUrl.includes("your-project-id") &&
       !supabaseUrl.includes("placeholder-project") &&
       !supabaseAnonKey.includes("your-anon-key") &&
-      !supabaseAnonKey.includes("placeholder")
+      !supabaseAnonKey.includes("your-publishable-key")
   );
 
-  const isPlaceholder = Boolean(
-    supabaseUrl.includes("placeholder") || supabaseAnonKey.includes("placeholder")
-  );
+  const isPlaceholder = !isConfigured;
 
   return {
     supabaseUrl,

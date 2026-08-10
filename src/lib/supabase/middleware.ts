@@ -4,7 +4,7 @@ import { getSupabaseEnvConfig } from "./config";
 
 /**
  * Next.js Server Middleware session & route protection handler.
- * Enforces role-based route protection and authentication checks.
+ * Enforces strict role-based route protection and Supabase authentication checks.
  */
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -24,51 +24,7 @@ export async function updateSession(request: NextRequest) {
 
   const isLoginPage = pathname === "/login" || pathname === "/reset-password";
 
-  const demoAuthCookie = request.cookies.get("sms-auth-session")?.value;
-  const demoRoleCookie = request.cookies.get("sms-user-role")?.value || "administrator";
-
-  // Check demo mode authentication state
-  if (config.isPlaceholder || !config.isConfigured) {
-    if (isProtectedPath && !demoAuthCookie) {
-      const loginUrl = request.nextUrl.clone();
-      loginUrl.pathname = "/login";
-      loginUrl.searchParams.set("redirectTo", pathname);
-      return NextResponse.redirect(loginUrl);
-    }
-
-    if (isProtectedPath && demoAuthCookie) {
-      if (pathname.startsWith("/admin") && demoRoleCookie !== "administrator") {
-        const homeUrl = request.nextUrl.clone();
-        homeUrl.pathname = `/${demoRoleCookie}`;
-        return NextResponse.redirect(homeUrl);
-      }
-      if (pathname.startsWith("/principal") && demoRoleCookie !== "principal" && demoRoleCookie !== "administrator") {
-        const homeUrl = request.nextUrl.clone();
-        homeUrl.pathname = `/${demoRoleCookie}`;
-        return NextResponse.redirect(homeUrl);
-      }
-      if (pathname.startsWith("/teacher") && demoRoleCookie !== "teacher" && demoRoleCookie !== "administrator") {
-        const homeUrl = request.nextUrl.clone();
-        homeUrl.pathname = `/${demoRoleCookie}`;
-        return NextResponse.redirect(homeUrl);
-      }
-      if (pathname.startsWith("/student") && demoRoleCookie !== "student" && demoRoleCookie !== "administrator") {
-        const homeUrl = request.nextUrl.clone();
-        homeUrl.pathname = `/${demoRoleCookie}`;
-        return NextResponse.redirect(homeUrl);
-      }
-    }
-
-    if (isLoginPage && demoAuthCookie) {
-      const homeUrl = request.nextUrl.clone();
-      homeUrl.pathname = `/${demoRoleCookie}`;
-      return NextResponse.redirect(homeUrl);
-    }
-
-    return supabaseResponse;
-  }
-
-  // Supabase Live Client Session Verification
+  // Supabase Client Session Verification
   const supabase = createServerClient(config.supabaseUrl, config.supabaseAnonKey, {
     cookies: {
       getAll() {
@@ -88,44 +44,11 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  // Refresh and retrieve current authenticated user
+  // Refresh and retrieve current authenticated user from Supabase Auth
   const { data: { user } } = await supabase.auth.getUser();
 
-  // If live Supabase user is not found, check if demo mode session cookie exists
+  // Block access to protected paths if unauthenticated
   if (!user) {
-    if (demoAuthCookie === "true") {
-      if (isProtectedPath) {
-        if (pathname.startsWith("/admin") && demoRoleCookie !== "administrator") {
-          const homeUrl = request.nextUrl.clone();
-          homeUrl.pathname = `/${demoRoleCookie}`;
-          return NextResponse.redirect(homeUrl);
-        }
-        if (pathname.startsWith("/principal") && demoRoleCookie !== "principal" && demoRoleCookie !== "administrator") {
-          const homeUrl = request.nextUrl.clone();
-          homeUrl.pathname = `/${demoRoleCookie}`;
-          return NextResponse.redirect(homeUrl);
-        }
-        if (pathname.startsWith("/teacher") && demoRoleCookie !== "teacher" && demoRoleCookie !== "administrator") {
-          const homeUrl = request.nextUrl.clone();
-          homeUrl.pathname = `/${demoRoleCookie}`;
-          return NextResponse.redirect(homeUrl);
-        }
-        if (pathname.startsWith("/student") && demoRoleCookie !== "student" && demoRoleCookie !== "administrator") {
-          const homeUrl = request.nextUrl.clone();
-          homeUrl.pathname = `/${demoRoleCookie}`;
-          return NextResponse.redirect(homeUrl);
-        }
-      }
-
-      if (isLoginPage) {
-        const homeUrl = request.nextUrl.clone();
-        homeUrl.pathname = `/${demoRoleCookie}`;
-        return NextResponse.redirect(homeUrl);
-      }
-
-      return supabaseResponse;
-    }
-
     if (isProtectedPath) {
       const loginUrl = request.nextUrl.clone();
       loginUrl.pathname = "/login";
@@ -137,7 +60,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (user) {
-    // Fetch profile role and account status
+    // Fetch profile role and account status from PostgreSQL profiles table
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: profile } = await (supabase.from("profiles") as any)
       .select("role, is_active")

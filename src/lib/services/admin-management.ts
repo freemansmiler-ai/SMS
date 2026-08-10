@@ -73,12 +73,24 @@ const MOCK_ADMINISTRATORS: AdministratorRecord[] = [
 ];
 
 function generateTempPassword(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
-  let temp = "Admin@2026";
-  for (let i = 0; i < 4; i++) {
-    temp += chars.charAt(Math.floor(Math.random() * chars.length));
+  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const lower = "abcdefghijkmnpqrstuvwxyz";
+  const digits = "23456789";
+  const symbols = "!@#$%^&*";
+  const all = upper + lower + digits + symbols;
+
+  const arr = [
+    upper.charAt(Math.floor(Math.random() * upper.length)),
+    lower.charAt(Math.floor(Math.random() * lower.length)),
+    digits.charAt(Math.floor(Math.random() * digits.length)),
+    symbols.charAt(Math.floor(Math.random() * symbols.length)),
+  ];
+
+  for (let i = 0; i < 8; i++) {
+    arr.push(all.charAt(Math.floor(Math.random() * all.length)));
   }
-  return temp;
+
+  return arr.sort(() => 0.5 - Math.random()).join("");
 }
 
 /**

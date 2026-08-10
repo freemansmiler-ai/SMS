@@ -2,9 +2,8 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { User, Session } from "@supabase/supabase-js";
-import { createBrowserClient, getSupabaseEnvConfig } from "@/lib/supabase";
+import { createBrowserClient } from "@/lib/supabase";
 import { UserRole, UserProfile } from "@/types";
-import { MOCK_PROFILES } from "@/constants/navigation";
 
 interface AuthContextType {
   user: User | null;
@@ -14,7 +13,7 @@ interface AuthContextType {
   loading: boolean;
   mustChangePassword: boolean;
   setMustChangePassword: (val: boolean) => void;
-  signIn: (email: string, password?: string, roleOverride?: UserRole) => Promise<{ success: boolean; role: UserRole; mustChangePassword?: boolean; error?: string }>;
+  signIn: (email: string, password?: string) => Promise<{ success: boolean; role: UserRole; mustChangePassword?: boolean; error?: string }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
 }
@@ -45,8 +44,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         const fetchedRole = data.role as UserRole;
         setRoleState(fetchedRole);
-        document.cookie = `sms-auth-session=true; path=/; max-age=86400`;
-        document.cookie = `sms-user-role=${fetchedRole}; path=/; max-age=86400`;
         setProfile({
           id: data.id,
           name: `${data.first_name || ""} ${data.last_name || ""}`.trim() || data.email,
@@ -57,30 +54,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       }
     } catch {
-      // Fallback
+      // Profile fetch fallback
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    const { isConfigured, isPlaceholder } = getSupabaseEnvConfig();
-
-    if (!isConfigured || isPlaceholder) {
-      const isAuth = document.cookie.includes("sms-auth-session=true");
-      const matchRole = document.cookie.match(/sms-user-role=([^;]+)/);
-      const activeRole = (matchRole ? matchRole[1] : null) as UserRole | null;
-
-      if (isAuth && activeRole) {
-        setRoleState(activeRole);
-        setProfile(MOCK_PROFILES[activeRole]);
-      } else {
-        setProfile(null);
-      }
-      setLoading(false);
-      return;
-    }
-
     const supabase = createBrowserClient();
 
     // Get initial session
@@ -121,24 +101,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signIn = async (
     email: string,
-    password?: string,
-    roleOverride?: UserRole
+    password?: string
   ): Promise<{ success: boolean; role: UserRole; mustChangePassword?: boolean; error?: string }> => {
-    const config = getSupabaseEnvConfig();
     const cleanEmail = email.trim().toLowerCase();
 
-    // In placeholder or unconfigured mode, use demo mode
-    if (config.isPlaceholder || !config.isConfigured) {
-      const selectedRole = roleOverride || "administrator";
-      const targetProfile = MOCK_PROFILES[selectedRole];
-      setRoleState(selectedRole);
-      setProfile(targetProfile);
-      document.cookie = `sms-auth-session=true; path=/; max-age=86400`;
-      document.cookie = `sms-user-role=${selectedRole}; path=/; max-age=86400`;
-      return { success: true, role: selectedRole };
-    }
-
-    // Live Supabase Authentication
     if (!password) {
       return { success: false, role: "administrator", error: "Password is required." };
     }
@@ -150,17 +116,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     if (error) {
-      // Demo email fallback if live user not found yet
-      if (cleanEmail.endsWith("@academy.edu")) {
-        const selectedRole = roleOverride || "administrator";
-        const targetProfile = MOCK_PROFILES[selectedRole];
-        setRoleState(selectedRole);
-        setProfile(targetProfile);
-        document.cookie = `sms-auth-session=true; path=/; max-age=86400`;
-        document.cookie = `sms-user-role=${selectedRole}; path=/; max-age=86400`;
-        return { success: true, role: selectedRole };
-      }
-
       return { success: false, role: "administrator", error: error.message };
     }
 
@@ -195,9 +150,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         phone: profileData?.phone ?? undefined,
       });
 
-      document.cookie = `sms-auth-session=true; path=/; max-age=86400`;
-      document.cookie = `sms-user-role=${userRole}; path=/; max-age=86400`;
-
       return { success: true, role: userRole, mustChangePassword: forcePass };
     }
 
@@ -205,13 +157,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signOut = async () => {
-    const config = getSupabaseEnvConfig();
-    if (config.isConfigured && !config.isPlaceholder) {
-      const supabase = createBrowserClient();
-      await supabase.auth.signOut();
-    }
-    document.cookie = "sms-auth-session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
-    document.cookie = "sms-user-role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
+    const supabase = createBrowserClient();
+    await supabase.auth.signOut();
     setUser(null);
     setSession(null);
     setProfile(null);
@@ -222,14 +169,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const resetPassword = async (email: string) => {
-    const config = getSupabaseEnvConfig();
-    if (config.isConfigured && !config.isPlaceholder) {
-      const supabase = createBrowserClient();
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
-      if (error) return { success: false, error: error.message };
-    }
+    const supabase = createBrowserClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    if (error) return { success: false, error: error.message };
     return { success: true };
   };
 
