@@ -7,17 +7,28 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ------------------------------------------------------------------------------
--- ENUM DEFINITIONS
+-- ENUM DEFINITIONS (Idempotent Safe Creation)
 -- ------------------------------------------------------------------------------
-CREATE TYPE user_role AS ENUM ('administrator', 'principal', 'teacher', 'student');
-CREATE TYPE attendance_status AS ENUM ('present', 'absent', 'late', 'excused');
-CREATE TYPE result_status AS ENUM ('draft', 'submitted', 'under_review', 'returned', 'approved', 'published');
-CREATE TYPE announcement_target AS ENUM ('all', 'teachers', 'students', 'parents');
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+        CREATE TYPE user_role AS ENUM ('administrator', 'principal', 'teacher', 'student');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'attendance_status') THEN
+        CREATE TYPE attendance_status AS ENUM ('present', 'absent', 'late', 'excused');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'result_status') THEN
+        CREATE TYPE result_status AS ENUM ('draft', 'submitted', 'under_review', 'returned', 'approved', 'published');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'announcement_target') THEN
+        CREATE TYPE announcement_target AS ENUM ('all', 'teachers', 'students', 'parents');
+    END IF;
+END $$;
 
 -- ------------------------------------------------------------------------------
 -- 1. SCHOOLS (Multi-Tenancy Foundation)
 -- ------------------------------------------------------------------------------
-CREATE TABLE schools (
+CREATE TABLE IF NOT EXISTS schools (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255) NOT NULL,
     code VARCHAR(50) NOT NULL UNIQUE,
@@ -33,7 +44,7 @@ CREATE TABLE schools (
 -- ------------------------------------------------------------------------------
 -- 2. SCHOOL SETTINGS
 -- ------------------------------------------------------------------------------
-CREATE TABLE school_settings (
+CREATE TABLE IF NOT EXISTS school_settings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     school_id UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE UNIQUE,
     timezone VARCHAR(50) NOT NULL DEFAULT 'UTC',
@@ -47,7 +58,7 @@ CREATE TABLE school_settings (
 -- ------------------------------------------------------------------------------
 -- 3. PROFILES (Extends Supabase auth.users)
 -- ------------------------------------------------------------------------------
-CREATE TABLE profiles (
+CREATE TABLE IF NOT EXISTS profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     school_id UUID NOT NULL REFERENCES schools(id) ON DELETE RESTRICT,
     email VARCHAR(255) NOT NULL UNIQUE,
@@ -64,7 +75,7 @@ CREATE TABLE profiles (
 -- ------------------------------------------------------------------------------
 -- 4. STUDENTS
 -- ------------------------------------------------------------------------------
-CREATE TABLE students (
+CREATE TABLE IF NOT EXISTS students (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     profile_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE UNIQUE,
     school_id UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
@@ -83,7 +94,7 @@ CREATE TABLE students (
 -- ------------------------------------------------------------------------------
 -- 5. TEACHERS
 -- ------------------------------------------------------------------------------
-CREATE TABLE teachers (
+CREATE TABLE IF NOT EXISTS teachers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     profile_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE UNIQUE,
     school_id UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
@@ -99,7 +110,7 @@ CREATE TABLE teachers (
 -- ------------------------------------------------------------------------------
 -- 6. ACADEMIC YEARS
 -- ------------------------------------------------------------------------------
-CREATE TABLE academic_years (
+CREATE TABLE IF NOT EXISTS academic_years (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     school_id UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
     name VARCHAR(100) NOT NULL,
@@ -115,7 +126,7 @@ CREATE TABLE academic_years (
 -- ------------------------------------------------------------------------------
 -- 7. TERMS
 -- ------------------------------------------------------------------------------
-CREATE TABLE terms (
+CREATE TABLE IF NOT EXISTS terms (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     school_id UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
     academic_year_id UUID NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
@@ -130,14 +141,20 @@ CREATE TABLE terms (
 );
 
 -- Foreign Key circular resolution for school_settings
-ALTER TABLE school_settings
-    ADD CONSTRAINT fk_settings_current_year FOREIGN KEY (current_academic_year_id) REFERENCES academic_years(id) ON DELETE SET NULL,
-    ADD CONSTRAINT fk_settings_current_term FOREIGN KEY (current_term_id) REFERENCES terms(id) ON DELETE SET NULL;
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_settings_current_year') THEN
+        ALTER TABLE school_settings ADD CONSTRAINT fk_settings_current_year FOREIGN KEY (current_academic_year_id) REFERENCES academic_years(id) ON DELETE SET NULL;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_settings_current_term') THEN
+        ALTER TABLE school_settings ADD CONSTRAINT fk_settings_current_term FOREIGN KEY (current_term_id) REFERENCES terms(id) ON DELETE SET NULL;
+    END IF;
+END $$;
 
 -- ------------------------------------------------------------------------------
 -- 8. CLASSES
 -- ------------------------------------------------------------------------------
-CREATE TABLE classes (
+CREATE TABLE IF NOT EXISTS classes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     school_id UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
     academic_year_id UUID NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT,
@@ -154,7 +171,7 @@ CREATE TABLE classes (
 -- ------------------------------------------------------------------------------
 -- 9. SUBJECTS
 -- ------------------------------------------------------------------------------
-CREATE TABLE subjects (
+CREATE TABLE IF NOT EXISTS subjects (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     school_id UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
     code VARCHAR(50) NOT NULL,
@@ -168,7 +185,7 @@ CREATE TABLE subjects (
 -- ------------------------------------------------------------------------------
 -- 10. TEACHER ASSIGNMENTS (Teacher -> Subject -> Class -> Academic Year -> Term)
 -- ------------------------------------------------------------------------------
-CREATE TABLE teacher_assignments (
+CREATE TABLE IF NOT EXISTS teacher_assignments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     school_id UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
     teacher_id UUID NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
@@ -184,7 +201,7 @@ CREATE TABLE teacher_assignments (
 -- ------------------------------------------------------------------------------
 -- 11. STUDENT ENROLLMENTS (Historical Class Preservation Across Academic Years)
 -- ------------------------------------------------------------------------------
-CREATE TABLE student_enrollments (
+CREATE TABLE IF NOT EXISTS student_enrollments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     school_id UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
     student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
@@ -200,7 +217,7 @@ CREATE TABLE student_enrollments (
 -- ------------------------------------------------------------------------------
 -- 12. RESULTS / GRADES
 -- ------------------------------------------------------------------------------
-CREATE TABLE results (
+CREATE TABLE IF NOT EXISTS results (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     school_id UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
     student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
@@ -229,7 +246,7 @@ CREATE TABLE results (
 -- ------------------------------------------------------------------------------
 -- 13. ATTENDANCE
 -- ------------------------------------------------------------------------------
-CREATE TABLE attendance (
+CREATE TABLE IF NOT EXISTS attendance (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     school_id UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
     student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
@@ -249,7 +266,7 @@ CREATE TABLE attendance (
 -- ------------------------------------------------------------------------------
 -- 14. TIMETABLES
 -- ------------------------------------------------------------------------------
-CREATE TABLE timetables (
+CREATE TABLE IF NOT EXISTS timetables (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     school_id UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
     class_id UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
@@ -268,7 +285,7 @@ CREATE TABLE timetables (
 -- ------------------------------------------------------------------------------
 -- 15. ANNOUNCEMENTS
 -- ------------------------------------------------------------------------------
-CREATE TABLE announcements (
+CREATE TABLE IF NOT EXISTS announcements (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     school_id UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
     author_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
@@ -284,7 +301,7 @@ CREATE TABLE announcements (
 -- ------------------------------------------------------------------------------
 -- 16. NOTIFICATIONS
 -- ------------------------------------------------------------------------------
-CREATE TABLE notifications (
+CREATE TABLE IF NOT EXISTS notifications (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     school_id UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
@@ -298,7 +315,7 @@ CREATE TABLE notifications (
 -- ------------------------------------------------------------------------------
 -- 17. AUDIT LOGS
 -- ------------------------------------------------------------------------------
-CREATE TABLE audit_logs (
+CREATE TABLE IF NOT EXISTS audit_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     school_id UUID REFERENCES schools(id) ON DELETE SET NULL,
     user_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
@@ -313,20 +330,20 @@ CREATE TABLE audit_logs (
 -- ------------------------------------------------------------------------------
 -- HIGH PERFORMANCE INDEXES
 -- ------------------------------------------------------------------------------
-CREATE INDEX idx_profiles_school ON profiles(school_id);
-CREATE INDEX idx_profiles_role ON profiles(role);
-CREATE INDEX idx_students_school ON students(school_id);
-CREATE INDEX idx_teachers_school ON teachers(school_id);
-CREATE INDEX idx_classes_school_year ON classes(school_id, academic_year_id);
-CREATE INDEX idx_subjects_school ON subjects(school_id);
-CREATE INDEX idx_teacher_assignments_lookup ON teacher_assignments(school_id, class_id, term_id, academic_year_id);
-CREATE INDEX idx_student_enrollments_lookup ON student_enrollments(school_id, class_id, academic_year_id);
-CREATE INDEX idx_results_lookup ON results(school_id, student_id, term_id, academic_year_id);
-CREATE INDEX idx_attendance_lookup ON attendance(school_id, class_id, date);
-CREATE INDEX idx_timetables_lookup ON timetables(school_id, class_id, day_of_week);
-CREATE INDEX idx_announcements_school ON announcements(school_id, published_at DESC);
-CREATE INDEX idx_notifications_user ON notifications(user_id, is_read);
-CREATE INDEX idx_audit_logs_school ON audit_logs(school_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_profiles_school ON profiles(school_id);
+CREATE INDEX IF NOT EXISTS idx_profiles_role ON profiles(role);
+CREATE INDEX IF NOT EXISTS idx_students_school ON students(school_id);
+CREATE INDEX IF NOT EXISTS idx_teachers_school ON teachers(school_id);
+CREATE INDEX IF NOT EXISTS idx_classes_school_year ON classes(school_id, academic_year_id);
+CREATE INDEX IF NOT EXISTS idx_subjects_school ON subjects(school_id);
+CREATE INDEX IF NOT EXISTS idx_teacher_assignments_lookup ON teacher_assignments(school_id, class_id, term_id, academic_year_id);
+CREATE INDEX IF NOT EXISTS idx_student_enrollments_lookup ON student_enrollments(school_id, class_id, academic_year_id);
+CREATE INDEX IF NOT EXISTS idx_results_lookup ON results(school_id, student_id, term_id, academic_year_id);
+CREATE INDEX IF NOT EXISTS idx_attendance_lookup ON attendance(school_id, class_id, date);
+CREATE INDEX IF NOT EXISTS idx_timetables_lookup ON timetables(school_id, class_id, day_of_week);
+CREATE INDEX IF NOT EXISTS idx_announcements_school ON announcements(school_id, published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, is_read);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_school ON audit_logs(school_id, created_at DESC);
 
 -- ------------------------------------------------------------------------------
 -- AUTOMATIC UPDATED_AT TIMESTAMP FUNCTION & TRIGGER
@@ -339,18 +356,47 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trg_schools_updated_at ON schools;
 CREATE TRIGGER trg_schools_updated_at BEFORE UPDATE ON schools FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+
+DROP TRIGGER IF EXISTS trg_school_settings_updated_at ON school_settings;
 CREATE TRIGGER trg_school_settings_updated_at BEFORE UPDATE ON school_settings FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+
+DROP TRIGGER IF EXISTS trg_profiles_updated_at ON profiles;
 CREATE TRIGGER trg_profiles_updated_at BEFORE UPDATE ON profiles FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+
+DROP TRIGGER IF EXISTS trg_students_updated_at ON students;
 CREATE TRIGGER trg_students_updated_at BEFORE UPDATE ON students FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+
+DROP TRIGGER IF EXISTS trg_teachers_updated_at ON teachers;
 CREATE TRIGGER trg_teachers_updated_at BEFORE UPDATE ON teachers FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+
+DROP TRIGGER IF EXISTS trg_academic_years_updated_at ON academic_years;
 CREATE TRIGGER trg_academic_years_updated_at BEFORE UPDATE ON academic_years FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+
+DROP TRIGGER IF EXISTS trg_terms_updated_at ON terms;
 CREATE TRIGGER trg_terms_updated_at BEFORE UPDATE ON terms FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+
+DROP TRIGGER IF EXISTS trg_classes_updated_at ON classes;
 CREATE TRIGGER trg_classes_updated_at BEFORE UPDATE ON classes FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+
+DROP TRIGGER IF EXISTS trg_subjects_updated_at ON subjects;
 CREATE TRIGGER trg_subjects_updated_at BEFORE UPDATE ON subjects FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+
+DROP TRIGGER IF EXISTS trg_teacher_assignments_updated_at ON teacher_assignments;
 CREATE TRIGGER trg_teacher_assignments_updated_at BEFORE UPDATE ON teacher_assignments FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+
+DROP TRIGGER IF EXISTS trg_student_enrollments_updated_at ON student_enrollments;
 CREATE TRIGGER trg_student_enrollments_updated_at BEFORE UPDATE ON student_enrollments FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+
+DROP TRIGGER IF EXISTS trg_results_updated_at ON results;
 CREATE TRIGGER trg_results_updated_at BEFORE UPDATE ON results FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+
+DROP TRIGGER IF EXISTS trg_attendance_updated_at ON attendance;
 CREATE TRIGGER trg_attendance_updated_at BEFORE UPDATE ON attendance FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+
+DROP TRIGGER IF EXISTS trg_timetables_updated_at ON timetables;
 CREATE TRIGGER trg_timetables_updated_at BEFORE UPDATE ON timetables FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+
+DROP TRIGGER IF EXISTS trg_announcements_updated_at ON announcements;
 CREATE TRIGGER trg_announcements_updated_at BEFORE UPDATE ON announcements FOR EACH ROW EXECUTE FUNCTION update_timestamp();
