@@ -113,14 +113,21 @@ export async function fetchAdminDashboardData() {
       timestamp: new Date(a.created_at).toLocaleTimeString(),
     }));
 
+    // Query total submitted results
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { count: totalSubmittedCount } = await (supabase.from("results") as any).select("*", { count: "exact", head: true });
+    const submitted = totalSubmittedCount ?? 0;
+    const totalResults = submitted + metrics.pendingResults;
+    const rate = totalResults > 0 ? Number(((submitted / totalResults) * 100).toFixed(1)) : 0;
+
     return {
       metrics,
       recentRegistrations,
       recentAuditLogs,
       resultStatus: {
-        totalSubmitted: 480,
+        totalSubmitted: submitted,
         totalPending: metrics.pendingResults,
-        completionRate: metrics.pendingResults > 0 ? 95.0 : 100.0,
+        completionRate: rate,
       },
     };
   } catch {
