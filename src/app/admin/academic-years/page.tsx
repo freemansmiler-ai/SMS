@@ -264,7 +264,7 @@ export default function AcademicYearManagementPage() {
                   <div className="border-t border-slate-100 dark:border-slate-800">
                     {ay.terms.length === 0 ? (
                       <div className="p-4 text-center text-xs text-slate-500">
-                        No terms defined for this academic year yet.
+                        No term defined for this academic year yet.
                       </div>
                     ) : (
                       <Table>
