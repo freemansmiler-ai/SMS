@@ -131,10 +131,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .maybeSingle();
 
       if (profileErr) {
-        return { success: false, role: "administrator", error: "Failed to retrieve user profile." };
+        return { success: false, role: "administrator", error: "Failed to retrieve user profile. Please ensure database migrations have been executed in Supabase." };
       }
 
-      if (profileData && profileData.is_active === false) {
+      if (!profileData) {
+        await supabase.auth.signOut();
+        return { success: false, role: "administrator", error: "User profile record not found in database. Please provision the administrator account." };
+      }
+
+      if (profileData.is_active === false) {
         await supabase.auth.signOut();
         return { success: false, role: "administrator", error: "Your account has been deactivated. Please contact the administrator." };
       }

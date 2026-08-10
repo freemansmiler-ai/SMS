@@ -222,7 +222,7 @@ CREATE POLICY "settings_all_admin" ON public.school_settings
 
 -- 3. PROFILES
 CREATE POLICY "profiles_select_same_school" ON public.profiles
-    FOR SELECT USING (school_id = get_auth_school_id());
+    FOR SELECT USING (id = auth.uid() OR school_id = get_auth_school_id());
 
 CREATE POLICY "profiles_update_own" ON public.profiles
     FOR UPDATE USING (id = auth.uid());

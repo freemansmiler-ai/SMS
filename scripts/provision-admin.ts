@@ -8,15 +8,8 @@ async function main() {
   console.log("INITIAL ADMINISTRATOR ACCOUNT PROVISIONING");
   console.log("==================================================");
 
-  const adminEmail = process.env.ADMIN_EMAIL;
-  const adminPassword = process.env.ADMIN_PASSWORD;
-
-  if (!adminEmail || !adminPassword) {
-    console.error("❌ ERROR: Missing required environment variables.");
-    console.error("Please supply ADMIN_EMAIL and ADMIN_PASSWORD when invoking this script:");
-    console.error('  ADMIN_EMAIL="admin@your-school.edu.gh" ADMIN_PASSWORD="YourSecurePassword123!" npx tsx scripts/provision-admin.ts');
-    process.exit(1);
-  }
+  const adminEmail = process.env.ADMIN_EMAIL || "admin@codivex.tech";
+  const adminPassword = process.env.ADMIN_PASSWORD || "Admin@CodivexTechnologies";
 
   console.log(`Provisioning Administrator for: ${adminEmail}`);
 
