@@ -76,28 +76,19 @@ export async function fetchPrincipalAttendanceAnalytics(
   if (config.isPlaceholder || !config.isConfigured) {
     return {
       metrics: {
-        totalRecords: 1120,
-        presentCount: 1042,
-        absentCount: 38,
-        lateCount: 28,
-        excusedCount: 12,
-        attendanceRate: 95.5,
-        absenceRate: 3.4,
-        lateRate: 2.5,
-        excusedRate: 1.1,
+        totalRecords: 0,
+        presentCount: 0,
+        absentCount: 0,
+        lateCount: 0,
+        excusedCount: 0,
+        attendanceRate: 0,
+        absenceRate: 0,
+        lateRate: 0,
+        excusedRate: 0,
       },
-      classBreakdown: [
-        { classId: "class-basic7a", className: "Basic 7 - Section A", gradeLevel: "Basic 7", enrolledStudents: 35, totalRecords: 350, presentCount: 330, absentCount: 12, lateCount: 6, excusedCount: 2, attendanceRate: 96.0 },
-        { classId: "class-basic8a", className: "Basic 8 - Section A", gradeLevel: "Basic 8", enrolledStudents: 38, totalRecords: 380, presentCount: 355, absentCount: 14, lateCount: 8, excusedCount: 3, attendanceRate: 95.5 },
-        { classId: "class-basic9b", className: "Basic 9 - Section B", gradeLevel: "Basic 9", enrolledStudents: 35, totalRecords: 390, presentCount: 357, absentCount: 12, lateCount: 14, excusedCount: 7, attendanceRate: 95.1 },
-      ],
-      studentAttentionList: [
-        { studentId: "stu-103", studentCode: "GES-2026-003", studentName: "Kofi Acheampong Jr.", className: "Basic 8 - Section A", totalSessions: 20, presentCount: 14, absentCount: 4, lateCount: 2, excusedCount: 0, attendanceRate: 80.0, status: "Requires Attention" },
-      ],
-      teacherActivityList: [
-        { teacherId: "tch-201", teacherName: "Abena Appiah", department: "Mathematics & Science", sessionsRecorded: 42, classesCovered: 2, lastRecordingDate: "Today" },
-        { teacherId: "tch-202", teacherName: "Kofi Boateng", department: "Languages", sessionsRecorded: 38, classesCovered: 3, lastRecordingDate: "Yesterday" },
-      ],
+      classBreakdown: [],
+      studentAttentionList: [],
+      teacherActivityList: [],
       academicYearName: "2026/2027 Academic Year",
       termName: "Term 1",
     };

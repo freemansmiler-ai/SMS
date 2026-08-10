@@ -350,16 +350,16 @@ async function generateSchoolAttendanceReport(supabase: any, schoolId: string, s
   const { data } = await supabase.from("attendance").select("status").eq("school_id", schoolId);
   const atts = data || [];
 
-  const total = atts.length || 1120;
+  const total = atts.length;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const present = atts.filter((a: any) => a.status === "present").length || 1042;
+  const present = atts.filter((a: any) => a.status === "present").length;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const late = atts.filter((a: any) => a.status === "late").length || 28;
+  const late = atts.filter((a: any) => a.status === "late").length;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const absent = atts.filter((a: any) => a.status === "absent").length || 38;
+  const absent = atts.filter((a: any) => a.status === "absent").length;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const excused = atts.filter((a: any) => a.status === "excused").length || 12;
-  const rate = Number((((present + late) / total) * 100).toFixed(1));
+  const excused = atts.filter((a: any) => a.status === "excused").length;
+  const rate = total > 0 ? Number((((present + late) / total) * 100).toFixed(1)) : 0;
 
   return {
     header: {
@@ -548,8 +548,8 @@ async function generateEnrollmentReport(supabase: any, schoolId: string, schoolN
       filterDescription: "Current Academic Session Active Enrollments",
     },
     summaryMetrics: [
-      { label: "Total Registered Students", value: stus.length || 1120 },
-      { label: "Active School Enrollment", value: stus.length || 1084 },
+      { label: "Total Registered Students", value: stus.length },
+      { label: "Active School Enrollment", value: stus.length },
     ],
     columns: [
       { key: "studentCode", label: "Student ID" },
@@ -557,10 +557,7 @@ async function generateEnrollmentReport(supabase: any, schoolId: string, schoolN
       { key: "gender", label: "Gender" },
       { key: "status", label: "Enrollment Status" },
     ],
-    rows: rows.length > 0 ? rows : [
-      { studentCode: "GES-2026-001", studentName: "Kwame Kyeremateng", gender: "Male", status: "active" },
-      { studentCode: "GES-2026-002", studentName: "Akosua Mensah", gender: "Female", status: "active" },
-    ],
+    rows,
   };
 }
 

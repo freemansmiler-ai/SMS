@@ -148,8 +148,12 @@ export default function LoginPage() {
 
         {/* Security Notice */}
         <p className="text-center text-[11px] text-slate-400">
+         Developed by Kpogli Freeman @ Codivex Technologies &copy; 2026. All rights reserved.
+        </p>
+        <p className="text-center text-[11px] text-slate-400">
           Protected by Supabase Auth & PostgreSQL Row Level Security (RLS).
         </p>
+        
       </div>
     </div>
   );

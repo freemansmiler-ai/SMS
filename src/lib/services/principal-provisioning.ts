@@ -1,7 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSupabaseEnvConfig } from "@/lib/supabase/config";
 
-export interface ProvisionAdminParams {
+export interface ProvisionPrincipalParams {
   email: string;
   password?: string;
   firstName?: string;
@@ -10,25 +10,24 @@ export interface ProvisionAdminParams {
   schoolCode?: string;
 }
 
-export interface ProvisionAdminResult {
+export interface ProvisionPrincipalResult {
   success: boolean;
   message: string;
-  adminId?: string;
+  principalId?: string;
   schoolId?: string;
   error?: string;
 }
 
 /**
- * SERVER-ONLY Initial Administrator Provisioning Utility.
- * Securely creates the primary Administrator user in Supabase Auth & PostgreSQL profiles.
- * MUST ONLY be executed in server-side administrative tasks.
+ * SERVER-ONLY Initial Principal / Headmaster Provisioning Utility.
+ * Securely creates a Principal user in Supabase Auth & PostgreSQL profiles table.
  */
-export async function provisionInitialAdministrator(
-  params: ProvisionAdminParams
-): Promise<ProvisionAdminResult> {
+export async function provisionPrincipal(
+  params: ProvisionPrincipalParams
+): Promise<ProvisionPrincipalResult> {
   if (typeof window !== "undefined") {
     throw new Error(
-      "SECURITY VIOLATION: provisionInitialAdministrator() cannot be executed in browser context."
+      "SECURITY VIOLATION: provisionPrincipal() cannot be executed in browser context."
     );
   }
 
@@ -37,8 +36,8 @@ export async function provisionInitialAdministrator(
   if (isPlaceholder || !isConfigured) {
     return {
       success: true,
-      message: "Development/Placeholder Mode: Initial Administrator profile ready.",
-      adminId: "admin-demo-id",
+      message: "Development/Placeholder Mode: Principal profile ready.",
+      principalId: "principal-demo-id",
       schoolId: "00000000-0000-0000-0000-000000000001",
     };
   }
@@ -49,9 +48,9 @@ export async function provisionInitialAdministrator(
     const schoolName = params.schoolName || "Achimota Basic School";
     const schoolCode = params.schoolCode || "ABS-2026";
     const email = params.email.trim().toLowerCase();
-    const firstName = params.firstName || "System";
-    const lastName = params.lastName || "Administrator";
-    const password = params.password || "AdminPass123!";
+    const firstName = params.firstName || "Rev. Emmanuel";
+    const lastName = params.lastName || "Mensah";
+    const password = params.password || "Principal@CodivexTechnologies";
 
     // 1. Verify or create default School record in PostgreSQL first
     let schoolId = "00000000-0000-0000-0000-000000000001";
@@ -106,7 +105,7 @@ export async function provisionInitialAdministrator(
       password,
       email_confirm: true,
       user_metadata: {
-        role: "administrator",
+        role: "principal",
         school_id: schoolId,
         first_name: firstName,
         last_name: lastName,
@@ -124,7 +123,7 @@ export async function provisionInitialAdministrator(
             password,
             email_confirm: true,
             user_metadata: {
-              role: "administrator",
+              role: "principal",
               school_id: schoolId,
               first_name: firstName,
               last_name: lastName,
@@ -152,7 +151,7 @@ export async function provisionInitialAdministrator(
           email,
           first_name: firstName,
           last_name: lastName,
-          role: "administrator",
+          role: "principal",
           is_active: true,
         });
       } catch {
@@ -162,8 +161,8 @@ export async function provisionInitialAdministrator(
 
     return {
       success: true,
-      message: `Administrator account (${email}) successfully provisioned in Supabase Auth.`,
-      adminId: userId || undefined,
+      message: `Principal account (${email}) successfully provisioned in Supabase Auth & PostgreSQL.`,
+      principalId: userId || undefined,
       schoolId,
     };
   } catch (err: unknown) {

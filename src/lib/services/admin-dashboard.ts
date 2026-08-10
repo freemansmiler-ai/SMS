@@ -38,63 +38,19 @@ export async function fetchAdminDashboardData() {
   if (config.isPlaceholder || !config.isConfigured) {
     return {
       metrics: {
-        totalStudents: 1120,
-        totalTeachers: 84,
-        totalClasses: 32,
-        totalSubjects: 48,
-        activeUsers: 1204,
-        pendingResults: 14,
+        totalStudents: 0,
+        totalTeachers: 0,
+        totalClasses: 0,
+        totalSubjects: 0,
+        activeUsers: 0,
+        pendingResults: 0,
       },
-      recentRegistrations: [
-        {
-          id: "reg-1",
-          name: "David Miller",
-          email: "d.miller@student.academy.edu",
-          role: "student",
-          createdAt: "15 mins ago",
-        },
-        {
-          id: "reg-2",
-          name: "Dr. Amanda Ross",
-          email: "a.ross@academy.edu",
-          role: "teacher",
-          createdAt: "2 hours ago",
-        },
-        {
-          id: "reg-3",
-          name: "Sophia Chen",
-          email: "s.chen@student.academy.edu",
-          role: "student",
-          createdAt: "5 hours ago",
-        },
-      ],
-      recentAuditLogs: [
-        {
-          id: "log-1",
-          action: "UPDATE_SCHOOL_SETTINGS",
-          entityType: "school_settings",
-          userEmail: "admin@academy.edu",
-          timestamp: "10 mins ago",
-        },
-        {
-          id: "log-2",
-          action: "ROLE_PERMISSION_CHECK",
-          entityType: "profiles",
-          userEmail: "principal@academy.edu",
-          timestamp: "45 mins ago",
-        },
-        {
-          id: "log-3",
-          action: "GRADEBOOK_SYNC",
-          entityType: "results",
-          userEmail: "s.jenkins@academy.edu",
-          timestamp: "2 hours ago",
-        },
-      ],
+      recentRegistrations: [],
+      recentAuditLogs: [],
       resultStatus: {
-        totalSubmitted: 480,
-        totalPending: 14,
-        completionRate: 97.1,
+        totalSubmitted: 0,
+        totalPending: 0,
+        completionRate: 0,
       },
     };
   }

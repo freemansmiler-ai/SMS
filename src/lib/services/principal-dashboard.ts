@@ -129,45 +129,41 @@ export async function fetchPrincipalDashboardOverview(): Promise<PrincipalDashbo
         schoolId: "sch-01",
         schoolName: "Achimota Basic School",
         schoolCode: "ABS-2026",
-        firstName: "Dr. Kwesi",
-        lastName: "Nduom",
-        email: "k.nduom@ghanaschools.edu.gh",
+        firstName: "Headmaster",
+        lastName: "Principal",
+        email: "principal@codivex.tech",
       },
       metrics: {
-        totalStudents: 1120,
-        activeStudents: 1084,
-        totalTeachers: 84,
-        activeTeachers: 80,
-        totalClasses: 32,
-        activeClasses: 32,
-        totalSubjects: 14,
-        assignedSubjectsCount: 12,
-        unassignedSubjectsCount: 2,
-        overallSchoolAverage: 76.4,
-        overallPassRate: 94.2,
-        attendanceRate: 96.8,
-        pendingResultApprovals: 14,
+        totalStudents: 0,
+        activeStudents: 0,
+        totalTeachers: 0,
+        activeTeachers: 0,
+        totalClasses: 0,
+        activeClasses: 0,
+        totalSubjects: 0,
+        assignedSubjectsCount: 0,
+        unassignedSubjectsCount: 0,
+        overallSchoolAverage: 0,
+        overallPassRate: 0,
+        attendanceRate: 0,
+        pendingResultApprovals: 0,
       },
       currentAcademicYear: "2026/2027 Academic Year",
       currentTerm: "Term 1",
-      classOccupancy: [
-        { classId: "class-basic7a", className: "Basic 7 - Section A", gradeLevel: "Basic 7", capacity: 35, enrolledCount: 28, availableSpaces: 7 },
-        { classId: "class-basic8a", className: "Basic 8 - Section A", gradeLevel: "Basic 8", capacity: 40, enrolledCount: 37, availableSpaces: 3 },
-        { classId: "class-basic9b", className: "Basic 9 - Section B", gradeLevel: "Basic 9", capacity: 35, enrolledCount: 30, availableSpaces: 5 },
-      ],
+      classOccupancy: [],
       resultStatus: {
-        draftCount: 8,
-        submittedCount: 14,
-        underReviewCount: 6,
-        returnedCount: 2,
-        approvedCount: 32,
-        publishedCount: 120,
+        draftCount: 0,
+        submittedCount: 0,
+        underReviewCount: 0,
+        returnedCount: 0,
+        approvedCount: 0,
+        publishedCount: 0,
       },
       attendanceSummary: {
-        presentCount: 1084,
-        absentCount: 24,
-        lateCount: 12,
-        excusedCount: 5,
+        presentCount: 0,
+        absentCount: 0,
+        lateCount: 0,
+        excusedCount: 0,
       },
     };
   }
@@ -213,12 +209,12 @@ export async function fetchPrincipalDashboardOverview(): Promise<PrincipalDashbo
     // Compute Student counts
     const totalStudents = studentsRes.data?.length || 0;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const activeStudents = studentsRes.data?.filter((s: any) => s.status === "active").length || totalStudents;
+    const activeStudents = studentsRes.data?.filter((s: any) => s.status === "active").length || 0;
 
     // Compute Teacher counts
     const totalTeachers = teachersRes.data?.length || 0;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const activeTeachers = teachersRes.data?.filter((t: any) => t.is_active !== false).length || totalTeachers;
+    const activeTeachers = teachersRes.data?.filter((t: any) => t.is_active !== false).length || 0;
 
     // Compute Class Occupancy
     const totalClasses = classesRes.data?.length || 0;

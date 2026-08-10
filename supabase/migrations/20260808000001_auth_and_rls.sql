@@ -228,7 +228,11 @@ CREATE POLICY "profiles_update_own" ON public.profiles
     FOR UPDATE USING (id = auth.uid());
 
 CREATE POLICY "profiles_all_admin" ON public.profiles
-    FOR ALL USING (school_id = get_auth_school_id() AND get_auth_role() = 'administrator');
+    FOR ALL USING (school_id = get_auth_school_id() AND get_auth_role() = 'administrator')
+    WITH CHECK (school_id = get_auth_school_id() AND get_auth_role() = 'administrator');
+
+CREATE POLICY "profiles_insert_admin" ON public.profiles
+    FOR INSERT WITH CHECK (school_id = get_auth_school_id() AND get_auth_role() IN ('administrator', 'principal'));
 
 -- 4. STUDENTS
 CREATE POLICY "students_select_admin_principal" ON public.students
@@ -428,7 +432,9 @@ CREATE POLICY "timetables_select_student" ON public.timetables
     );
 
 CREATE POLICY "timetables_manage_admin" ON public.timetables
-    FOR ALL USING (school_id = get_auth_school_id() AND get_auth_role() = 'administrator');
+    FOR ALL
+    USING (school_id = get_auth_school_id() AND get_auth_role() = 'administrator')
+    WITH CHECK (school_id = get_auth_school_id() AND get_auth_role() = 'administrator');
 
 -- 15. ANNOUNCEMENTS
 CREATE POLICY "announcements_select_published" ON public.announcements
@@ -458,3 +464,26 @@ CREATE POLICY "audit_logs_select_admin" ON public.audit_logs
 
 CREATE POLICY "audit_logs_insert_authenticated" ON public.audit_logs
     FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+
+-- ------------------------------------------------------------------------------
+-- 6. EXPLICIT TABLE GRANTS TO AUTHENTICATED & SERVICE_ROLE
+-- ------------------------------------------------------------------------------
+GRANT USAGE ON SCHEMA public TO authenticated, anon, service_role;
+
+GRANT ALL ON TABLE public.schools TO authenticated, service_role;
+GRANT ALL ON TABLE public.school_settings TO authenticated, service_role;
+GRANT ALL ON TABLE public.profiles TO authenticated, service_role;
+GRANT ALL ON TABLE public.students TO authenticated, service_role;
+GRANT ALL ON TABLE public.teachers TO authenticated, service_role;
+GRANT ALL ON TABLE public.classes TO authenticated, service_role;
+GRANT ALL ON TABLE public.subjects TO authenticated, service_role;
+GRANT ALL ON TABLE public.teacher_assignments TO authenticated, service_role;
+GRANT ALL ON TABLE public.student_enrollments TO authenticated, service_role;
+GRANT ALL ON TABLE public.results TO authenticated, service_role;
+GRANT ALL ON TABLE public.attendance TO authenticated, service_role;
+GRANT ALL ON TABLE public.timetables TO authenticated, service_role;
+GRANT ALL ON TABLE public.academic_years TO authenticated, service_role;
+GRANT ALL ON TABLE public.terms TO authenticated, service_role;
+GRANT ALL ON TABLE public.announcements TO authenticated, service_role;
+GRANT ALL ON TABLE public.notifications TO authenticated, service_role;
+GRANT ALL ON TABLE public.audit_logs TO authenticated, service_role;

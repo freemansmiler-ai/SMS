@@ -24,7 +24,7 @@ async function main() {
 
   if (result.success) {
     console.log("✅ SUCCESS:", result.message);
-    console.log(`   School ID: ${result.schoolId || "school-demo-id"}`);
+    console.log(`   School ID: ${result.schoolId || "00000000-0000-0000-0000-000000000001"}`);
     console.log(`   Admin ID:  ${result.adminId || "admin-demo-id"}`);
     console.log("\nYou can now log in at /login as Administrator.");
   } else {

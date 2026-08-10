@@ -1,5 +1,6 @@
 import { createBrowserClient, getSupabaseEnvConfig } from "@/lib/supabase";
 import { recordAuditLog } from "./audit-logs";
+import { requireAuthorization } from "./authorization";
 
 export type WeekDay = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday";
 
@@ -267,35 +268,51 @@ export async function createTimetableSlot(
       adminProfile = data;
     }
 
-    const effectiveRole = adminProfile?.role || user?.user_metadata?.role;
-    if (effectiveRole !== "administrator") {
-      return { success: false, error: "UNAUTHORIZED: Only an administrator can create timetable entries." };
+    // 1. Check administrator authorization and school scoping
+    const authRes = await requireAuthorization(["administrator"]);
+    if (!authRes.authorized || !authRes.schoolId) {
+      return { success: false, error: authRes.error || "UNAUTHORIZED: Only an administrator can create timetable entries." };
     }
+    const schoolId = authRes.schoolId;
 
-    let schoolId = adminProfile?.school_id || user?.user_metadata?.school_id;
-    if (!schoolId) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: defaultSchool } = await (supabase.from("schools") as any)
-        .select("id")
-        .limit(1)
-        .maybeSingle();
-      schoolId = defaultSchool?.id;
-    }
-
-    if (!schoolId) {
-      return { success: false, error: "Administrator school assignment not found." };
-    }
-
-    // Resolve current term_id
+    // 2. Resolve current term_id
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: termData } = await (supabase.from("terms") as any)
+    let { data: termData } = await (supabase.from("terms") as any)
       .select("id")
       .eq("school_id", schoolId)
       .limit(1)
       .maybeSingle();
 
-    const termId = termData?.id || crypto.randomUUID();
+    if (!termData) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: yearData } = await (supabase.from("academic_years") as any)
+        .select("id")
+        .eq("school_id", schoolId)
+        .limit(1)
+        .maybeSingle();
 
+      if (yearData) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: newTerm } = await (supabase.from("terms") as any)
+          .insert({
+            school_id: schoolId,
+            academic_year_id: yearData.id,
+            name: "Term 1",
+            start_date: "2026-09-01",
+            end_date: "2026-12-15",
+            is_current: true,
+          })
+          .select("id")
+          .single();
+        termData = newTerm;
+      }
+    }
+
+    if (!termData) {
+      return { success: false, error: "Academic year/term context not found. Please create an Academic Year and Term first." };
+    }
+
+    // 3. Insert timetable entry
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: newTimetable, error } = await (supabase.from("timetables") as any)
       .insert({
@@ -303,7 +320,7 @@ export async function createTimetableSlot(
         class_id: newSlot.classId,
         subject_id: newSlot.subjectId,
         teacher_id: newSlot.teacherId,
-        term_id: termId,
+        term_id: termData.id,
         day_of_week: DAY_TO_NUMBER[newSlot.day] || 1,
         start_time: newSlot.startTime,
         end_time: newSlot.endTime,
