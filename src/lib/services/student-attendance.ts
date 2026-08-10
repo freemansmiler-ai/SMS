@@ -118,40 +118,31 @@ export async function fetchStudentAttendanceAnalytics(
     const schoolId = profile.school_id;
     const studentName = `${profile.first_name || "Student"} ${profile.last_name || ""}`.trim();
 
-    // Query student record linked to auth profile
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: studentRec } = await (supabase.from("students") as any)
-      .select("id, student_code")
-      .eq("profile_id", user.id)
-      .maybeSingle();
+    // Parallelize student metadata queries
+    const [
+      { data: studentRec },
+      { data: ayData },
+      { data: termsData },
+    ] = await Promise.all([
+      (supabase.from("students") as any).select("id, student_code").eq("profile_id", user.id).maybeSingle(),
+      (supabase.from("academic_years") as any).select("id, name").eq("school_id", schoolId),
+      (supabase.from("terms") as any).select("id, name").eq("school_id", schoolId),
+    ]);
 
     if (!studentRec) throw new Error("Student profile record not found.");
 
     const studentId = studentRec.id;
     const studentCode = studentRec.student_code || "GES-STU";
-
-    // Query available academic years & terms
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: ayData } = await (supabase.from("academic_years") as any).select("id, name").eq("school_id", schoolId);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: termsData } = await (supabase.from("terms") as any).select("id, name").eq("school_id", schoolId);
-
     const availableAcademicYears = ayData || [{ id: "ay-1", name: "2026/2027 Academic Year" }];
     const availableTerms = termsData || [{ id: "t-1", name: "Term 1" }];
 
-    // Query historical enrollment for selected academic period
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // Prepare enrollment & attendance queries
     let enrQuery = (supabase.from("student_enrollments") as any)
       .select("class_id, classes:class_id(name)")
       .eq("student_id", studentId)
       .eq("school_id", schoolId);
-
     if (filters?.academicYearId) enrQuery = enrQuery.eq("academic_year_id", filters.academicYearId);
-    const { data: enrData } = await enrQuery.maybeSingle();
-    const className = enrData?.classes?.name || "Basic Class";
 
-    // Query attendance records FOR THIS AUTHENTICATED STUDENT ONLY
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let attQuery = (supabase.from("attendance") as any)
       .select(`
         id,
@@ -171,7 +162,9 @@ export async function fetchStudentAttendanceAnalytics(
     if (filters?.startDate) attQuery = attQuery.gte("date", filters.startDate);
     if (filters?.endDate) attQuery = attQuery.lte("date", filters.endDate);
 
-    const { data: attData } = await attQuery;
+    // Execute enrollment & attendance in parallel
+    const [{ data: enrData }, { data: attData }] = await Promise.all([enrQuery.maybeSingle(), attQuery]);
+    const className = enrData?.classes?.name || "Basic Class";
     const rawAtt = attData || [];
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

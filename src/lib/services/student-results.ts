@@ -162,40 +162,31 @@ export async function fetchStudentPublishedResults(
     const schoolId = profile.school_id;
     const studentName = `${profile.first_name || "Student"} ${profile.last_name || ""}`.trim();
 
-    // Query student record
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: studentRec } = await (supabase.from("students") as any)
-      .select("id, student_code")
-      .eq("profile_id", user.id)
-      .maybeSingle();
+    // Execute independent metadata and result queries concurrently via Promise.all
+    const [
+      { data: studentRec },
+      { data: ayData },
+      { data: termsData },
+    ] = await Promise.all([
+      (supabase.from("students") as any).select("id, student_code").eq("profile_id", user.id).maybeSingle(),
+      (supabase.from("academic_years") as any).select("id, name").eq("school_id", schoolId),
+      (supabase.from("terms") as any).select("id, name").eq("school_id", schoolId),
+    ]);
 
     if (!studentRec) throw new Error("Student profile record not found.");
 
     const studentId = studentRec.id;
     const studentCode = studentRec.student_code || "GES-STU";
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: ayData } = await (supabase.from("academic_years") as any).select("id, name").eq("school_id", schoolId);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: termsData } = await (supabase.from("terms") as any).select("id, name").eq("school_id", schoolId);
-
     const availableAcademicYears = ayData || [{ id: "ay-1", name: "2026/2027 Academic Year" }];
     const availableTerms = termsData || [{ id: "t-1", name: "Term 1" }];
 
-    // Query historical enrollment for selected academic year & term
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // Prepare enrollment & results queries
     let enrQuery = (supabase.from("student_enrollments") as any)
       .select("class_id, classes:class_id(name)")
       .eq("student_id", studentId)
       .eq("school_id", schoolId);
-
     if (filters?.academicYearId) enrQuery = enrQuery.eq("academic_year_id", filters.academicYearId);
-    const { data: enrData } = await enrQuery.maybeSingle();
 
-    const className = enrData?.classes?.name || "Basic Class";
-
-    // Query ONLY PUBLISHED results
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let resQuery = (supabase.from("results") as any)
       .select(`
         id,
@@ -211,11 +202,12 @@ export async function fetchStudentPublishedResults(
       .eq("student_id", studentId)
       .eq("school_id", schoolId)
       .eq("status", "published");
-
     if (filters?.academicYearId) resQuery = resQuery.eq("academic_year_id", filters.academicYearId);
     if (filters?.termId) resQuery = resQuery.eq("term_id", filters.termId);
 
-    const { data: resData } = await resQuery;
+    // Execute enrollment & results in parallel
+    const [{ data: enrData }, { data: resData }] = await Promise.all([enrQuery.maybeSingle(), resQuery]);
+    const className = enrData?.classes?.name || "Basic Class";
     const rawResults = resData || [];
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

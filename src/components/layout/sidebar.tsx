@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useRole } from "@/context/role-context";
+import { useAuth } from "@/context/auth-context";
 import { NAVIGATION_BY_ROLE, ROLE_LABELS } from "@/constants/navigation";
 import { NavSection, UserRole } from "@/types";
 import { DynamicIcon } from "@/components/ui/dynamic-icon";
@@ -16,7 +17,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { School, PanelLeftClose, PanelLeft } from "lucide-react";
+import { School, PanelLeftClose, PanelLeft, LogOut } from "lucide-react";
 
 interface SidebarProps {
   collapsed: boolean;
@@ -37,6 +38,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const pathname = usePathname();
   const { activeRole, activeProfile } = useRole();
+  const { signOut } = useAuth();
 
   const currentRole = roleOverride || activeRole;
   const navSections = customNavSections || NAVIGATION_BY_ROLE[currentRole] || [];
@@ -164,32 +166,49 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* User Role Card at Sidebar Bottom */}
         <div className="p-2 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
           {!collapsed ? (
-            <div className="flex items-center gap-2.5 p-2 rounded-md bg-white dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700/60">
-              <div className="flex h-7 w-7 items-center justify-center rounded-md bg-slate-100 text-slate-700 font-semibold text-[11px] dark:bg-slate-700 dark:text-slate-200">
-                {activeProfile.name.split(" ").map((n) => n[0]).join("")}
-              </div>
-              <div className="flex flex-col min-w-0 flex-1">
-                <span className="text-[11px] font-semibold text-slate-800 dark:text-slate-100 truncate leading-tight">
-                  {activeProfile.name}
-                </span>
-                <div className="mt-0.5">
-                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 border-slate-200 dark:border-slate-700">
-                    {ROLE_LABELS[currentRole].badge}
-                  </Badge>
+            <div className="flex items-center justify-between gap-2 p-2 rounded-md bg-white dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700/60">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                <div className="flex h-7 w-7 items-center justify-center rounded-md bg-slate-100 text-slate-700 font-semibold text-[11px] dark:bg-slate-700 dark:text-slate-200 shrink-0">
+                  {activeProfile.name.split(" ").map((n) => n[0]).join("")}
+                </div>
+                <div className="flex flex-col min-w-0 flex-1">
+                  <span className="text-[11px] font-semibold text-slate-800 dark:text-slate-100 truncate leading-tight">
+                    {activeProfile.name}
+                  </span>
+                  <div className="mt-0.5">
+                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 border-slate-200 dark:border-slate-700">
+                      {ROLE_LABELS[currentRole].badge}
+                    </Badge>
+                  </div>
                 </div>
               </div>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => signOut()}
+                className="h-7 w-7 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 shrink-0"
+                title="Log out of system"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                <span className="sr-only">Log Out</span>
+              </Button>
             </div>
           ) : (
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="flex justify-center cursor-pointer py-1">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-md bg-slate-100 text-slate-800 font-semibold text-[11px] dark:bg-slate-800 dark:text-slate-200">
-                    {activeProfile.name[0]}
+                <button
+                  type="button"
+                  onClick={() => signOut()}
+                  className="w-full flex justify-center cursor-pointer py-1"
+                >
+                  <div className="flex h-7 w-7 items-center justify-center rounded-md bg-slate-100 text-slate-800 font-semibold text-[11px] dark:bg-slate-800 dark:text-slate-200 hover:bg-rose-100 hover:text-rose-700 dark:hover:bg-rose-950 dark:hover:text-rose-300 transition-colors">
+                    <LogOut className="h-3.5 w-3.5" />
                   </div>
-                </div>
+                </button>
               </TooltipTrigger>
               <TooltipContent side="right">
-                {activeProfile.name} ({ROLE_LABELS[currentRole].title})
+                Log Out ({activeProfile.name})
               </TooltipContent>
             </Tooltip>
           )}

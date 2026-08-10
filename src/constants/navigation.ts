@@ -133,6 +133,13 @@ export const NAVIGATION_BY_ROLE: Record<UserRole, NavSection[]> = {
           roles: ["administrator"],
         },
         {
+          title: "Administrator Accounts",
+          href: "/admin/administrators",
+          icon: "ShieldCheck",
+          badge: "Admins",
+          roles: ["administrator"],
+        },
+        {
           title: "System Settings",
           href: "#",
           icon: "Settings",

@@ -34,7 +34,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const supabase = createBrowserClient();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase.from("profiles") as any)
-        .select("*")
+        .select("id, first_name, last_name, email, role, avatar_url, phone, is_active")
         .eq("id", userId)
         .single();
 
@@ -67,7 +67,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { isConfigured, isPlaceholder } = getSupabaseEnvConfig();
 
     if (!isConfigured || isPlaceholder) {
-      // Demo session cookie check
       const isAuth = document.cookie.includes("sms-auth-session=true");
       const matchRole = document.cookie.match(/sms-user-role=([^;]+)/);
       const activeRole = (matchRole ? matchRole[1] : null) as UserRole | null;
@@ -126,8 +125,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     roleOverride?: UserRole
   ): Promise<{ success: boolean; role: UserRole; mustChangePassword?: boolean; error?: string }> => {
     const config = getSupabaseEnvConfig();
+    const cleanEmail = email.trim().toLowerCase();
 
-    if (config.isPlaceholder || !config.isConfigured || !password || email.endsWith("@academy.edu") || roleOverride) {
+    // In placeholder or unconfigured mode, use demo mode
+    if (config.isPlaceholder || !config.isConfigured) {
       const selectedRole = roleOverride || "administrator";
       const targetProfile = MOCK_PROFILES[selectedRole];
       setRoleState(selectedRole);
@@ -137,15 +138,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: true, role: selectedRole };
     }
 
+    // Live Supabase Authentication
+    if (!password) {
+      return { success: false, role: "administrator", error: "Password is required." };
+    }
+
     const supabase = createBrowserClient();
     const { data, error } = await supabase.auth.signInWithPassword({
-      email,
+      email: cleanEmail,
       password,
     });
 
     if (error) {
-      // If demo email or role override selected, fallback to preview mode seamlessly
-      if (email.endsWith("@academy.edu") || roleOverride) {
+      // Demo email fallback if live user not found yet
+      if (cleanEmail.endsWith("@academy.edu")) {
         const selectedRole = roleOverride || "administrator";
         const targetProfile = MOCK_PROFILES[selectedRole];
         setRoleState(selectedRole);
@@ -162,11 +168,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const forcePass = Boolean(data.user.user_metadata?.must_change_password);
       setMustChangePassword(forcePass);
 
+      // Fetch user profile from Supabase profiles table
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: profileData } = await (supabase.from("profiles") as any)
-        .select("role, is_active")
+      const { data: profileData, error: profileErr } = await (supabase.from("profiles") as any)
+        .select("role, is_active, first_name, last_name, email, avatar_url, phone")
         .eq("id", data.user.id)
-        .single();
+        .maybeSingle();
+
+      if (profileErr) {
+        return { success: false, role: "administrator", error: "Failed to retrieve user profile." };
+      }
 
       if (profileData && profileData.is_active === false) {
         await supabase.auth.signOut();
@@ -175,13 +186,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const userRole = (profileData?.role as UserRole) || "administrator";
       setRoleState(userRole);
+      setProfile({
+        id: data.user.id,
+        name: profileData ? `${profileData.first_name || ""} ${profileData.last_name || ""}`.trim() : data.user.email || "User",
+        email: data.user.email || "",
+        role: userRole,
+        avatarUrl: profileData?.avatar_url ?? undefined,
+        phone: profileData?.phone ?? undefined,
+      });
+
       document.cookie = `sms-auth-session=true; path=/; max-age=86400`;
       document.cookie = `sms-user-role=${userRole}; path=/; max-age=86400`;
 
       return { success: true, role: userRole, mustChangePassword: forcePass };
     }
 
-    return { success: false, role: "administrator", error: "Authentication failed" };
+    return { success: false, role: "administrator", error: "Authentication failed." };
   };
 
   const signOut = async () => {

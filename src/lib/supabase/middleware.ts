@@ -24,11 +24,11 @@ export async function updateSession(request: NextRequest) {
 
   const isLoginPage = pathname === "/login" || pathname === "/reset-password";
 
+  const demoAuthCookie = request.cookies.get("sms-auth-session")?.value;
+  const demoRoleCookie = request.cookies.get("sms-user-role")?.value || "administrator";
+
   // Check demo mode authentication state
   if (config.isPlaceholder || !config.isConfigured) {
-    const demoAuthCookie = request.cookies.get("sms-auth-session")?.value;
-    const demoRoleCookie = request.cookies.get("sms-user-role")?.value || "administrator";
-
     if (isProtectedPath && !demoAuthCookie) {
       const loginUrl = request.nextUrl.clone();
       loginUrl.pathname = "/login";
@@ -37,7 +37,6 @@ export async function updateSession(request: NextRequest) {
     }
 
     if (isProtectedPath && demoAuthCookie) {
-      // Role enforcement in demo mode
       if (pathname.startsWith("/admin") && demoRoleCookie !== "administrator") {
         const homeUrl = request.nextUrl.clone();
         homeUrl.pathname = `/${demoRoleCookie}`;
@@ -92,11 +91,49 @@ export async function updateSession(request: NextRequest) {
   // Refresh and retrieve current authenticated user
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (isProtectedPath && !user) {
-    const loginUrl = request.nextUrl.clone();
-    loginUrl.pathname = "/login";
-    loginUrl.searchParams.set("redirectTo", pathname);
-    return NextResponse.redirect(loginUrl);
+  // If live Supabase user is not found, check if demo mode session cookie exists
+  if (!user) {
+    if (demoAuthCookie === "true") {
+      if (isProtectedPath) {
+        if (pathname.startsWith("/admin") && demoRoleCookie !== "administrator") {
+          const homeUrl = request.nextUrl.clone();
+          homeUrl.pathname = `/${demoRoleCookie}`;
+          return NextResponse.redirect(homeUrl);
+        }
+        if (pathname.startsWith("/principal") && demoRoleCookie !== "principal" && demoRoleCookie !== "administrator") {
+          const homeUrl = request.nextUrl.clone();
+          homeUrl.pathname = `/${demoRoleCookie}`;
+          return NextResponse.redirect(homeUrl);
+        }
+        if (pathname.startsWith("/teacher") && demoRoleCookie !== "teacher" && demoRoleCookie !== "administrator") {
+          const homeUrl = request.nextUrl.clone();
+          homeUrl.pathname = `/${demoRoleCookie}`;
+          return NextResponse.redirect(homeUrl);
+        }
+        if (pathname.startsWith("/student") && demoRoleCookie !== "student" && demoRoleCookie !== "administrator") {
+          const homeUrl = request.nextUrl.clone();
+          homeUrl.pathname = `/${demoRoleCookie}`;
+          return NextResponse.redirect(homeUrl);
+        }
+      }
+
+      if (isLoginPage) {
+        const homeUrl = request.nextUrl.clone();
+        homeUrl.pathname = `/${demoRoleCookie}`;
+        return NextResponse.redirect(homeUrl);
+      }
+
+      return supabaseResponse;
+    }
+
+    if (isProtectedPath) {
+      const loginUrl = request.nextUrl.clone();
+      loginUrl.pathname = "/login";
+      loginUrl.searchParams.set("redirectTo", pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    return supabaseResponse;
   }
 
   if (user) {
@@ -105,7 +142,7 @@ export async function updateSession(request: NextRequest) {
     const { data: profile } = await (supabase.from("profiles") as any)
       .select("role, is_active")
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
 
     const userRole = profile?.role || "administrator";
     const isActive = profile?.is_active !== false;

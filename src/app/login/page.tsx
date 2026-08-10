@@ -27,8 +27,16 @@ export default function LoginPage() {
     setLoading(true);
     setErrorMsg(null);
 
+    // 10-second safety timeout to prevent UI hanging indefinitely
+    const timeoutId = setTimeout(() => {
+      setLoading(false);
+      setErrorMsg("Authentication request timed out. Please check your network connection and try again.");
+    }, 10000);
+
     try {
-      const result = await signIn(email || `${selectedRole}@academy.edu`, password, selectedRole);
+      const loginEmail = email.trim() || `${selectedRole}@academy.edu`;
+      const result = await signIn(loginEmail, password, email.trim() ? undefined : selectedRole);
+      clearTimeout(timeoutId);
 
       if (!result.success) {
         setErrorMsg(result.error || "Invalid login credentials. Please check your email and password.");
@@ -53,8 +61,10 @@ export default function LoginPage() {
         default:
           router.push("/dashboard");
       }
-    } catch {
-      setErrorMsg("An unexpected error occurred during authentication.");
+    } catch (err: unknown) {
+      clearTimeout(timeoutId);
+      const msg = err instanceof Error ? err.message : "An unexpected error occurred during authentication.";
+      setErrorMsg(msg);
       setLoading(false);
     }
   };

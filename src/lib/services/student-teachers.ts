@@ -128,32 +128,28 @@ export async function fetchStudentAssignedTeachers(
     const schoolId = profile.school_id;
     const studentName = `${profile.first_name || "Student"} ${profile.last_name || ""}`.trim();
 
-    // Query student record
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: studentRec } = await (supabase.from("students") as any)
-      .select("id, student_code")
-      .eq("profile_id", user.id)
-      .maybeSingle();
+    // Parallelize metadata and student record queries
+    const [
+      { data: studentRec },
+      { data: ayData },
+      { data: termsData },
+      { data: subData },
+    ] = await Promise.all([
+      (supabase.from("students") as any).select("id, student_code").eq("profile_id", user.id).maybeSingle(),
+      (supabase.from("academic_years") as any).select("id, name").eq("school_id", schoolId),
+      (supabase.from("terms") as any).select("id, name").eq("school_id", schoolId),
+      (supabase.from("subjects") as any).select("id, name").eq("school_id", schoolId),
+    ]);
 
     if (!studentRec) throw new Error("Student profile record not found.");
 
     const studentId = studentRec.id;
     const studentCode = studentRec.student_code || "GES-STU";
-
-    // Query available academic years, terms, and subjects
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: ayData } = await (supabase.from("academic_years") as any).select("id, name").eq("school_id", schoolId);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: termsData } = await (supabase.from("terms") as any).select("id, name").eq("school_id", schoolId);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: subData } = await (supabase.from("subjects") as any).select("id, name").eq("school_id", schoolId);
-
     const availableAcademicYears = ayData || [{ id: "ay-1", name: "2026/2027 Academic Year" }];
     const availableTerms = termsData || [{ id: "t-1", name: "Term 1" }];
     const availableSubjects = subData || [];
 
     // Query historical/current enrollment for selected academic year
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let enrQuery = (supabase.from("student_enrollments") as any)
       .select("class_id, classes:class_id(name)")
       .eq("student_id", studentId)

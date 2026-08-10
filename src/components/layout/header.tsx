@@ -1,7 +1,9 @@
 "use client";
 
 import React from "react";
+import { useRouter } from "next/navigation";
 import { useRole } from "@/context/role-context";
+import { useAuth } from "@/context/auth-context";
 import { ROLE_LABELS } from "@/constants/navigation";
 import { RoleSwitcher } from "@/components/layout/role-switcher";
 import { Input } from "@/components/ui/input";
@@ -45,7 +47,9 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenMobileSidebar,
   customBreadcrumbs,
 }) => {
+  const router = useRouter();
   const { activeProfile, activeRole } = useRole();
+  const { signOut } = useAuth();
   const supabaseConfig = getSupabaseEnvConfig();
 
   return (
@@ -191,11 +195,17 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="gap-2 text-xs cursor-pointer">
+            <DropdownMenuItem
+              onClick={() => router.push(`/${activeRole}/profile`)}
+              className="gap-2 text-xs cursor-pointer"
+            >
               <User className="h-3.5 w-3.5 text-slate-500" />
               <span>My Profile</span>
             </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2 text-xs cursor-pointer">
+            <DropdownMenuItem
+              onClick={() => router.push(`/${activeRole}/profile`)}
+              className="gap-2 text-xs cursor-pointer"
+            >
               <Settings className="h-3.5 w-3.5 text-slate-500" />
               <span>Account Settings</span>
             </DropdownMenuItem>
@@ -204,7 +214,10 @@ export const Header: React.FC<HeaderProps> = ({
               <span>Database Status ({supabaseConfig.isConfigured ? "Connected" : "Ready"})</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="gap-2 text-xs text-rose-600 focus:text-rose-600 dark:text-rose-400 cursor-pointer">
+            <DropdownMenuItem
+              onClick={() => signOut()}
+              className="gap-2 text-xs text-rose-600 focus:text-rose-600 dark:text-rose-400 cursor-pointer"
+            >
               <LogOut className="h-3.5 w-3.5" />
               <span>Log out</span>
             </DropdownMenuItem>
