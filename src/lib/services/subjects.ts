@@ -1,5 +1,6 @@
 import { createBrowserClient, getSupabaseEnvConfig } from "@/lib/supabase";
 import { recordAuditLog } from "./audit-logs";
+import { requireAuthorization } from "./authorization";
 
 export interface SubjectRecord {
   id: string;
@@ -287,21 +288,12 @@ export async function createSubject(payload: CreateSubjectPayload): Promise<{ su
 
   const supabase = createBrowserClient();
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { success: false, error: "Authentication required to create subjects." };
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: adminProfile } = await (supabase.from("profiles") as any)
-      .select("school_id, role")
-      .eq("id", user.id)
-      .single();
-
-    if (adminProfile?.role !== "administrator") {
-      return { success: false, error: "UNAUTHORIZED: Only an administrator can create subjects." };
+    const authRes = await requireAuthorization(["administrator"]);
+    if (!authRes.authorized || !authRes.schoolId) {
+      return { success: false, error: authRes.error || "UNAUTHORIZED: Only an administrator can create subjects." };
     }
-
-    const schoolId = adminProfile?.school_id;
-    if (!schoolId) return { success: false, error: "Administrator school context missing." };
+    const schoolId = authRes.schoolId;
+    const userId = authRes.userId || "admin";
 
     // Duplicate check
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -337,7 +329,7 @@ export async function createSubject(payload: CreateSubjectPayload): Promise<{ su
       "SUBJECT_CREATION",
       "subjects",
       newSubj.id,
-      `Administrator (${user.id}) created curriculum subject '${payload.code} - ${payload.name}' in school ${schoolId}`
+      `Administrator (${userId}) created curriculum subject '${payload.code} - ${payload.name}' in school ${schoolId}`
     );
 
     return { success: true };

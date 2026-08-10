@@ -1,5 +1,6 @@
 import { createBrowserClient, getSupabaseEnvConfig } from "@/lib/supabase";
 import { recordAuditLog } from "./audit-logs";
+import { requireAuthorization } from "./authorization";
 
 export interface ClassRecord {
   id: string;
@@ -332,22 +333,12 @@ export async function createClass(payload: CreateClassPayload): Promise<{ succes
 
   const supabase = createBrowserClient();
   try {
-    // 1. Verify administrator role and school context
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { success: false, error: "Authentication required to create class records." };
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: adminProfile } = await (supabase.from("profiles") as any)
-      .select("school_id, role")
-      .eq("id", user.id)
-      .single();
-
-    if (adminProfile?.role !== "administrator") {
-      return { success: false, error: "UNAUTHORIZED: Only an administrator can create school classes." };
+    const authRes = await requireAuthorization(["administrator"]);
+    if (!authRes.authorized || !authRes.schoolId) {
+      return { success: false, error: authRes.error || "UNAUTHORIZED: Only an administrator can create school classes." };
     }
-
-    const schoolId = adminProfile?.school_id;
-    if (!schoolId) return { success: false, error: "Administrator school assignment not found." };
+    const schoolId = authRes.schoolId;
+    const userId = authRes.userId || "admin";
 
     if (payload.capacity <= 0) {
       return { success: false, error: "Class capacity must be a positive integer." };
@@ -406,7 +397,7 @@ export async function createClass(payload: CreateClassPayload): Promise<{ succes
       "CLASS_CREATION",
       "classes",
       newClass.id,
-      `Administrator (${user.id}) created class section '${payload.name}' in school ${schoolId}`
+      `Administrator (${userId}) created class section '${payload.name}' in school ${schoolId}`
     );
 
     return { success: true };
@@ -424,18 +415,12 @@ export async function updateClass(id: string, payload: Partial<CreateClassPayloa
 
   const supabase = createBrowserClient();
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { success: false, error: "Authentication required." };
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: adminProfile } = await (supabase.from("profiles") as any)
-      .select("school_id, role")
-      .eq("id", user.id)
-      .single();
-
-    if (adminProfile?.role !== "administrator") {
-      return { success: false, error: "UNAUTHORIZED: Only an administrator can edit classes." };
+    const authRes = await requireAuthorization(["administrator"]);
+    if (!authRes.authorized || !authRes.schoolId) {
+      return { success: false, error: authRes.error || "UNAUTHORIZED: Only an administrator can edit classes." };
     }
+    const schoolId = authRes.schoolId;
+    const userId = authRes.userId || "admin";
 
     if (payload.capacity !== undefined && payload.capacity <= 0) {
       return { success: false, error: "Class capacity must be a positive integer." };
@@ -451,7 +436,7 @@ export async function updateClass(id: string, payload: Partial<CreateClassPayloa
         class_teacher_id: payload.classTeacherId,
       })
       .eq("id", id)
-      .eq("school_id", adminProfile.school_id);
+      .eq("school_id", schoolId);
 
     if (error) return { success: false, error: error.message };
 
@@ -460,7 +445,7 @@ export async function updateClass(id: string, payload: Partial<CreateClassPayloa
       "CLASS_MODIFICATION",
       "classes",
       id,
-      `Administrator (${user.id}) updated class section ${id} in school ${adminProfile.school_id}`
+      `Administrator (${userId}) updated class section ${id} in school ${schoolId}`
     );
 
     return { success: true };
@@ -478,25 +463,19 @@ export async function deactivateClass(id: string): Promise<{ success: boolean; e
 
   const supabase = createBrowserClient();
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { success: false, error: "Authentication required." };
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: adminProfile } = await (supabase.from("profiles") as any)
-      .select("school_id, role")
-      .eq("id", user.id)
-      .single();
-
-    if (adminProfile?.role !== "administrator") {
-      return { success: false, error: "UNAUTHORIZED: Only an administrator can deactivate classes." };
+    const authRes = await requireAuthorization(["administrator"]);
+    if (!authRes.authorized || !authRes.schoolId) {
+      return { success: false, error: authRes.error || "UNAUTHORIZED: Only an administrator can deactivate classes." };
     }
+    const schoolId = authRes.schoolId;
+    const userId = authRes.userId || "admin";
 
     // Audit log (Soft-deactivation preserving historical enrollments, attendance, and results)
     await recordAuditLog(
       "CLASS_MODIFICATION",
       "classes",
       id,
-      `Administrator (${user.id}) soft-deactivated class ID ${id} with historical record preservation.`
+      `Administrator (${userId}) soft-deactivated class ID ${id} with historical record preservation.`
     );
 
     return { success: true };

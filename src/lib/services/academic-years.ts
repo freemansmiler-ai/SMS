@@ -1,5 +1,6 @@
 import { createBrowserClient, getSupabaseEnvConfig } from "@/lib/supabase";
 import { recordAuditLog } from "./audit-logs";
+import { requireAuthorization } from "./authorization";
 
 export interface TermRecord {
   id: string;
@@ -181,21 +182,12 @@ export async function createAcademicYear(payload: CreateAcademicYearPayload): Pr
 
   const supabase = createBrowserClient();
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { success: false, error: "Authentication required to manage academic years." };
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: adminProfile } = await (supabase.from("profiles") as any)
-      .select("school_id, role")
-      .eq("id", user.id)
-      .single();
-
-    if (adminProfile?.role !== "administrator") {
-      return { success: false, error: "UNAUTHORIZED: Only an administrator can create academic years." };
+    const authRes = await requireAuthorization(["administrator"]);
+    if (!authRes.authorized || !authRes.schoolId) {
+      return { success: false, error: authRes.error || "UNAUTHORIZED: Only an administrator can create academic years." };
     }
-
-    const schoolId = adminProfile?.school_id;
-    if (!schoolId) return { success: false, error: "Administrator school context missing." };
+    const schoolId = authRes.schoolId;
+    const userId = authRes.userId || "admin";
 
     // Check duplicate name
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -209,32 +201,30 @@ export async function createAcademicYear(payload: CreateAcademicYearPayload): Pr
       return { success: false, error: `Academic year '${payload.name}' already exists in your school.` };
     }
 
-    // If isCurrent is requested, unset is_current on all other academic years
-    if (payload.isCurrent) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase.from("academic_years") as any)
-        .update({ is_current: false })
-        .eq("school_id", schoolId);
-    }
-
-    // Insert record
+    // Insert academic year
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: newYear, error: insertErr } = await (supabase.from("academic_years") as any)
+    const { data: newYear, error: yearErr } = await (supabase.from("academic_years") as any)
       .insert({
         school_id: schoolId,
         name: payload.name.trim(),
         start_date: payload.startDate,
         end_date: payload.endDate,
-        is_current: Boolean(payload.isCurrent),
+        is_current: payload.isCurrent || false,
       })
       .select("id")
       .single();
 
-    if (insertErr || !newYear) {
-      return { success: false, error: insertErr?.message || "Failed to create academic year." };
+    if (yearErr || !newYear) {
+      return { success: false, error: yearErr?.message || "Failed to create academic year." };
     }
 
     if (payload.isCurrent) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase.from("academic_years") as any)
+        .update({ is_current: false })
+        .eq("school_id", schoolId)
+        .neq("id", newYear.id);
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (supabase.from("school_settings") as any)
         .update({ current_academic_year_id: newYear.id })
@@ -246,7 +236,7 @@ export async function createAcademicYear(payload: CreateAcademicYearPayload): Pr
       "ACADEMIC_YEAR_CREATION",
       "academic_years",
       newYear.id,
-      `Administrator (${user.id}) created academic year '${payload.name}' (${payload.startDate} to ${payload.endDate})`
+      `Administrator (${userId}) created academic year '${payload.name}' (${payload.startDate} to ${payload.endDate})`
     );
 
     return { success: true };
@@ -342,20 +332,12 @@ export async function createTerm(payload: CreateTermPayload): Promise<{ success:
 
   const supabase = createBrowserClient();
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { success: false, error: "Authentication required." };
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: adminProfile } = await (supabase.from("profiles") as any)
-      .select("school_id, role")
-      .eq("id", user.id)
-      .single();
-
-    if (adminProfile?.role !== "administrator") {
-      return { success: false, error: "UNAUTHORIZED: Only an administrator can create terms." };
+    const authRes = await requireAuthorization(["administrator"]);
+    if (!authRes.authorized || !authRes.schoolId) {
+      return { success: false, error: authRes.error || "UNAUTHORIZED: Only an administrator can create terms." };
     }
-
-    const schoolId = adminProfile?.school_id;
+    const schoolId = authRes.schoolId;
+    const userId = authRes.userId || "admin";
 
     // Validate parent academic year dates
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -431,7 +413,7 @@ export async function createTerm(payload: CreateTermPayload): Promise<{ success:
       "TERM_CREATION",
       "terms",
       newTerm.id,
-      `Administrator (${user.id}) created term '${payload.name}' in academic year ${payload.academicYearId}`
+      `Administrator (${userId}) created term '${payload.name}' in academic year ${payload.academicYearId}`
     );
 
     return { success: true };

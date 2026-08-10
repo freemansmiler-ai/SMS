@@ -1,5 +1,6 @@
 import { createBrowserClient, getSupabaseEnvConfig } from "@/lib/supabase";
 import { recordAuditLog } from "./audit-logs";
+import { requireAuthorization } from "./authorization";
 
 export interface StudentRecord {
   id: string;
@@ -256,41 +257,11 @@ export async function createStudent(payload: CreateStudentPayload): Promise<{ su
 
   const supabase = createBrowserClient();
   try {
-    // 1. Obtain administrator's school_id
-    const { data: { user } } = await supabase.auth.getUser();
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let adminProfile: any = null;
-    if (user?.id) {
-      const { data } = await (supabase.from("profiles") as any)
-        .select("school_id, role")
-        .eq("id", user.id)
-        .maybeSingle();
-      adminProfile = data;
+    const authRes = await requireAuthorization(["administrator", "principal"]);
+    if (!authRes.authorized || !authRes.schoolId) {
+      return { success: false, error: authRes.error || "UNAUTHORIZED: Only an administrator can create student accounts." };
     }
-
-    const userRole = adminProfile?.role || user?.user_metadata?.role || "administrator";
-
-    if (userRole !== "administrator" && userRole !== "principal") {
-      return { success: false, error: "UNAUTHORIZED: Only an administrator can create student accounts." };
-    }
-
-    let schoolId = adminProfile?.school_id || user?.user_metadata?.school_id;
-    if (!schoolId) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: defaultSchool } = await (supabase.from("schools") as any)
-        .select("id")
-        .limit(1)
-        .maybeSingle();
-      schoolId = defaultSchool?.id;
-    }
-
-    if (!schoolId) {
-      if (config.isPlaceholder || !config.isConfigured) {
-        return { success: true, temporaryPassword: tempPassword };
-      }
-      return { success: false, error: "Administrator school assignment not found." };
-    }
+    const schoolId = authRes.schoolId;
 
     // 2. Duplicate student code check
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
