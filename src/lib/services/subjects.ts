@@ -130,13 +130,13 @@ export async function fetchSubjects(filters?: {
       code,
       name,
       description,
-      is_active,
+      status,
       created_at,
       teacher_assignments ( id )
     `);
 
     if (filters?.activeOnly) {
-      query = query.or("is_active.eq.true,is_active.is.null");
+      query = query.neq("status", "inactive");
     }
 
     const { data, error } = await query;
@@ -149,7 +149,7 @@ export async function fetchSubjects(filters?: {
       code: item.code,
       name: item.name,
       description: item.description || "",
-      status: item.is_active === false ? "inactive" : "active",
+      status: item.status === "inactive" ? "inactive" : "active",
       teacherCount: item.teacher_assignments ? item.teacher_assignments.length : 0,
       createdAt: item.created_at,
     }));
@@ -212,7 +212,7 @@ export async function fetchSubjectById(id: string): Promise<SubjectDetailRecord 
         code,
         name,
         description,
-        is_active,
+        status,
         created_at
       `)
       .eq("id", id)
@@ -269,7 +269,7 @@ export async function fetchSubjectById(id: string): Promise<SubjectDetailRecord 
       code: subjectData.code,
       name: subjectData.name,
       description: subjectData.description || "",
-      status: subjectData.is_active === false ? "inactive" : "active",
+      status: subjectData.status === "inactive" ? "inactive" : "active",
       teacherCount: assignedTeachersMap.size,
       createdAt: subjectData.created_at,
       assignedTeachers: Array.from(assignedTeachersMap.values()),
@@ -315,7 +315,7 @@ export async function createSubject(payload: CreateSubjectPayload): Promise<{ su
         code: payload.code.trim().toUpperCase(),
         name: payload.name.trim(),
         description: payload.description || null,
-        is_active: payload.status !== "inactive",
+        status: payload.status === "inactive" ? "inactive" : "active",
       })
       .select("id")
       .single();
@@ -366,7 +366,7 @@ export async function updateSubject(id: string, payload: Partial<CreateSubjectPa
         code: payload.code ? payload.code.trim().toUpperCase() : undefined,
         name: payload.name ? payload.name.trim() : undefined,
         description: payload.description,
-        is_active: payload.status !== undefined ? payload.status === "active" : undefined,
+        status: payload.status !== undefined ? payload.status : undefined,
       })
       .eq("id", id)
       .eq("school_id", adminProfile.school_id);
@@ -409,10 +409,10 @@ export async function deactivateSubject(id: string): Promise<{ success: boolean;
       return { success: false, error: "UNAUTHORIZED: Only an administrator can deactivate subjects." };
     }
 
-    // Soft-deactivate by setting is_active = false
+    // Soft-deactivate by setting status = 'inactive'
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase.from("subjects") as any)
-      .update({ is_active: false })
+      .update({ status: "inactive" })
       .eq("id", id)
       .eq("school_id", adminProfile.school_id);
 
@@ -456,7 +456,7 @@ export async function reactivateSubject(id: string): Promise<{ success: boolean;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase.from("subjects") as any)
-      .update({ is_active: true })
+      .update({ status: "active" })
       .eq("id", id)
       .eq("school_id", adminProfile.school_id);
 

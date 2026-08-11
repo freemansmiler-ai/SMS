@@ -87,7 +87,7 @@ export async function fetchStudentDashboardData(): Promise<StudentDashboardData>
     return {
       studentName: "Kwame Kyeremateng",
       studentCode: "GES-2026-001",
-      schoolName: "Achimota Basic School",
+      schoolName: "Codivex Academy",
       schoolCode: "ABS-2026",
       className: "Basic 8 - Section A",
       gradeLevel: "Basic 8",
@@ -152,7 +152,7 @@ export async function fetchStudentDashboardData(): Promise<StudentDashboardData>
 
     const schoolId = profile.school_id;
     const studentName = `${profile.first_name || "Student"} ${profile.last_name || ""}`.trim();
-    const schoolName = profile.schools?.name || "Achimota Basic School";
+    const schoolName = profile.schools?.name || "Codivex Academy";
     const schoolCode = profile.schools?.code || "SCH-01";
 
     const studentRec = studentRes.data;
@@ -264,7 +264,7 @@ export async function fetchStudentDashboardData(): Promise<StudentDashboardData>
     return {
       studentName: "Student User",
       studentCode: "GES-STU",
-      schoolName: "Achimota Basic School",
+      schoolName: "Codivex Academy",
       schoolCode: "ABS-2026",
       className: "No active enrollment found.",
       gradeLevel: "—",

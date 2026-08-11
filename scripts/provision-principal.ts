@@ -18,7 +18,7 @@ async function main() {
     password,
     firstName: process.env.PRINCIPAL_FIRST_NAME || "Rev. Emmanuel",
     lastName: process.env.PRINCIPAL_LAST_NAME || "Mensah",
-    schoolName: process.env.ADMIN_SCHOOL_NAME || "Achimota Basic School",
+    schoolName: process.env.ADMIN_SCHOOL_NAME || "AchimotaBasic School",
     schoolCode: process.env.ADMIN_SCHOOL_CODE || "ABS-2026",
   });
 

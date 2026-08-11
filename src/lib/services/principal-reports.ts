@@ -76,7 +76,7 @@ export async function generateSchoolReport(
     }
 
     const schoolId = profile.school_id;
-    const schoolName = profile.schools?.name || "Achimota Basic School";
+    const schoolName = profile.schools?.name || "Codivex Academy";
     const schoolCode = profile.schools?.code || "SCH-01";
 
     // Fetch school settings for academic year and term
@@ -648,7 +648,7 @@ async function generateSchoolSummaryReport(supabase: any, schoolId: string, scho
 function getMockReport(reportType: ReportType, generatedAt: string): GeneratedReport {
   return {
     header: {
-      schoolName: "Achimota Basic School",
+      schoolName: "Codivex Academy",
       schoolCode: "ABS-2026",
       reportTitle: "Official Executive School Report",
       academicYearName: "2026/2027 Academic Year",

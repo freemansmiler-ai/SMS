@@ -43,7 +43,7 @@ export async function fetchStudentProfile(): Promise<StudentProfileData> {
       className: "Basic 8 - Section A",
       gradeLevel: "Basic 8",
       academicYearName: "2026/2027 Academic Year",
-      schoolName: "Achimota Basic School",
+      schoolName: "Codivex Academy",
       schoolCode: "ABS-2026",
       accountStatus: "active",
     };
@@ -67,7 +67,7 @@ export async function fetchStudentProfile(): Promise<StudentProfileData> {
   const firstName = profile.first_name || "Student";
   const lastName = profile.last_name || "";
   const fullName = `${firstName} ${lastName}`.trim();
-  const schoolName = profile.schools?.name || "Achimota Basic School";
+  const schoolName = profile.schools?.name || "Codivex Academy";
   const schoolCode = profile.schools?.code || "ABS-2026";
 
   // Query student record
@@ -81,7 +81,7 @@ export async function fetchStudentProfile(): Promise<StudentProfileData> {
   const studentCode = studentRec?.student_code || "GES-STU";
   const gender = studentRec?.gender || "Not Specified";
   const dateOfBirth = studentRec?.date_of_birth || "—";
-  const address = studentRec?.address || "Achimota, Accra";
+  const address = studentRec?.address || "Akatsi, Volta Region";
   const accountStatus = studentRec?.status || (profile.is_active ? "active" : "inactive");
 
   // Query active enrollment

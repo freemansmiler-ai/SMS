@@ -81,7 +81,7 @@ export async function fetchPrincipalIdentity(): Promise<PrincipalIdentityInfo | 
     return {
       profileId: "prof-301",
       schoolId: "sch-01",
-      schoolName: "Achimota Basic School",
+      schoolName: "Codivex Academy",
       schoolCode: "ABS-2026",
       firstName: "Dr. Kwesi",
       lastName: "Nduom",
@@ -106,7 +106,7 @@ export async function fetchPrincipalIdentity(): Promise<PrincipalIdentityInfo | 
     return {
       profileId: profile.id,
       schoolId: profile.school_id,
-      schoolName: profile.schools?.name || "Achimota Basic School",
+      schoolName: profile.schools?.name || "Codivex Academy",
       schoolCode: profile.schools?.code || "SCH-01",
       firstName: profile.first_name,
       lastName: profile.last_name,
@@ -128,7 +128,7 @@ export async function fetchPrincipalDashboardOverview(): Promise<PrincipalDashbo
       identity: identity || {
         profileId: "prof-301",
         schoolId: "sch-01",
-        schoolName: "Achimota Basic School",
+        schoolName: "Codivex Academy",
         schoolCode: "ABS-2026",
         firstName: "Headmaster",
         lastName: "Principal",
@@ -203,7 +203,7 @@ export async function fetchPrincipalDashboardOverview(): Promise<PrincipalDashbo
     const identity: PrincipalIdentityInfo = {
       profileId: profile.id,
       schoolId: profile.school_id,
-      schoolName: profile.schools?.name || "Achimota Basic School",
+      schoolName: profile.schools?.name || "Codivex Academy",
       schoolCode: profile.schools?.code || "SCH-01",
       firstName: profile.first_name,
       lastName: profile.last_name,

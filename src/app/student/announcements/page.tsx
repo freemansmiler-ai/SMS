@@ -16,8 +16,10 @@ export default function StudentAnnouncementsPage() {
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      // Strictly fetch announcements relevant to student role and Basic 8 class
-      const data = await fetchAnnouncements({ role: "student", classId: "class-basic8a" });
+      // Fetch announcements for student role — no hardcoded classId.
+      // The service filters by target_audience IN ('all','Entire School','Students')
+      // so all school-wide and student-targeted announcements are returned.
+      const data = await fetchAnnouncements({ role: "student" });
       setItems(data);
       setLoading(false);
     };

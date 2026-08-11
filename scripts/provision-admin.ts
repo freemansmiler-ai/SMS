@@ -18,7 +18,8 @@ async function main() {
     password: adminPassword,
     firstName: process.env.ADMIN_FIRST_NAME || "System",
     lastName: process.env.ADMIN_LAST_NAME || "Administrator",
-    schoolName: process.env.ADMIN_SCHOOL_NAME || "Achimota Basic School",
+    schoolName: process.env.ADMIN_SCHOOL_NAME || "Codivex Academy",
+
     schoolCode: process.env.ADMIN_SCHOOL_CODE || "ABS-2026",
   });
 

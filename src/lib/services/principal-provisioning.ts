@@ -45,10 +45,10 @@ export async function provisionPrincipal(
   try {
     const supabaseAdmin = createAdminClient();
 
-    const schoolName = params.schoolName || "Achimota Basic School";
+    const schoolName = params.schoolName || "Codivex Academy";
     const schoolCode = params.schoolCode || "ABS-2026";
     const email = params.email.trim().toLowerCase();
-    const firstName = params.firstName || "Rev. Emmanuel";
+    const firstName = params.firstName || "Dr. Emmanuel";
     const lastName = params.lastName || "Mensah";
     const password = params.password || "Principal@CodivexTechnologies";
 

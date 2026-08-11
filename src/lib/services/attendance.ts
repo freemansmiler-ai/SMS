@@ -141,7 +141,7 @@ export async function fetchClassAttendance(
         : "Student",
       studentCode: item.students?.student_code || "GES-STU",
       classId: item.class_id,
-      className: item.classes?.name || "Basic Class",
+      className: item.classes?.name || "Basic/Class",
       academicYearId: item.academic_year_id,
       termId: item.term_id,
       date: item.date,

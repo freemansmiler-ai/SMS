@@ -92,7 +92,7 @@ export default function PrincipalDashboardPage() {
                   </Badge>
                 </div>
                 <div className="flex flex-wrap items-center gap-3 text-xs text-slate-300">
-                  <span className="font-bold text-slate-100">{identity?.schoolName || "Achimota Basic School"}</span>
+                  <span className="font-bold text-slate-100">{identity?.schoolName || "Codivex Academy "}</span>
                   <span>•</span>
                   <span className="font-mono text-slate-400">Code: {identity?.schoolCode || "SCH-01"}</span>
                   <span>•</span>

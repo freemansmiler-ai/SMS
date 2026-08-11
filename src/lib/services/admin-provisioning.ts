@@ -46,7 +46,7 @@ export async function provisionInitialAdministrator(
   try {
     const supabaseAdmin = createAdminClient();
 
-    const schoolName = params.schoolName || "Achimota Basic School";
+    const schoolName = params.schoolName || "Codivex Academy";
     const schoolCode = params.schoolCode || "ABS-2026";
     const email = params.email.trim().toLowerCase();
     const firstName = params.firstName || "System";

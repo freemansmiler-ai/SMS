@@ -83,7 +83,8 @@ export const AssignTeacherModal: React.FC<AssignTeacherModalProps> = ({
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const [subjRes, classRes, yearRes, termRes] = await Promise.all([
-          (supabase.from("subjects") as any).select("id, code, name").or("is_active.eq.true,is_active.is.null"),
+          // Use status column (not is_active — that column does not exist on subjects)
+          (supabase.from("subjects") as any).select("id, code, name").neq("status", "inactive"),
           (supabase.from("classes") as any).select("id, name"),
           (supabase.from("academic_years") as any).select("id, name"),
           (supabase.from("terms") as any).select("id, name"),

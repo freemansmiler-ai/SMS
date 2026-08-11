@@ -303,9 +303,9 @@ export async function fetchStudentReportCard(
 
   if (config.isPlaceholder || !config.isConfigured) {
     return {
-      schoolName: "Achimota Basic School",
+      schoolName: "Codivex Academy",
       schoolCode: "ABS-2026",
-      schoolAddress: "P.O. Box AH 80, Achimota, Accra, Ghana",
+      schoolAddress: "P.O. Box AH 80, Akatsi, V/R, Ghana",
       schoolContact: "Tel: +233 (0) 302 400 100 • Email: info@achimota.edu.gh",
       studentName: "Kwame Kyeremateng",
       studentCode: "GES-2026-001",
@@ -355,7 +355,7 @@ export async function fetchStudentReportCard(
     if (!profile || profile.role !== "student") throw new Error("UNAUTHORIZED");
 
     const schoolId = profile.school_id;
-    const schoolName = profile.schools?.name || "Achimota Basic School";
+    const schoolName = profile.schools?.name || "Codivex Academy";
     const schoolCode = profile.schools?.code || "ABS-2026";
     const schoolAddress = profile.schools?.address || "P.O. Box AH 80, Achimota, Accra";
     const schoolContact = `Tel: ${profile.schools?.phone || "+233 302 400 100"} • Email: ${profile.schools?.email || "info@school.edu.gh"}`;
@@ -485,10 +485,10 @@ export async function fetchStudentReportCard(
     };
   } catch {
     return {
-      schoolName: "Achimota Basic School",
+      schoolName: "Codivex Academy",
       schoolCode: "ABS-2026",
-      schoolAddress: "P.O. Box AH 80, Achimota, Accra, Ghana",
-      schoolContact: "Tel: +233 302 400 100 • Email: info@achimota.edu.gh",
+      schoolAddress: "P.O. Box AH 80, Akatsi, V/R, Ghana",
+      schoolContact: "Tel: +233 302 400 100 • Email: info@codivex.edu.gh",
       studentName: "Student User",
       studentCode: "GES-STU",
       studentId: "GES-STU",

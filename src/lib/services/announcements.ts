@@ -1,7 +1,25 @@
 import { createBrowserClient, getSupabaseEnvConfig } from "@/lib/supabase";
 
+// DB enum values for target_audience: 'all' | 'teachers' | 'students' | 'parents'
+// UI display labels map to these values
 export type TargetAudience = "Entire School" | "Teachers" | "Students" | "Specific Classes";
 export type AnnouncementStatus = "draft" | "published";
+
+// Maps UI TargetAudience labels to the DB enum values
+const AUDIENCE_TO_DB: Record<TargetAudience, string> = {
+  "Entire School": "all",
+  "Teachers": "teachers",
+  "Students": "students",
+  "Specific Classes": "students", // closest match; DB has no class-specific audience
+};
+
+// Maps DB enum values back to UI labels
+const DB_TO_AUDIENCE: Record<string, TargetAudience> = {
+  "all": "Entire School",
+  "teachers": "Teachers",
+  "students": "Students",
+  "parents": "Students", // treat parents as students audience in UI
+};
 
 export interface AnnouncementItem {
   id: string;
@@ -89,11 +107,23 @@ export async function fetchAnnouncements(filters?: {
 
   const supabase = createBrowserClient();
   try {
+    // Only select columns that actually exist in the DB.
+    // The announcements table has: id, title, content, target_audience, is_published, school_id, created_at
+    // Missing (not in DB): status, author, author_role, target_class_id
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase.from("announcements") as any)
-      .select("*")
+    let query = (supabase.from("announcements") as any)
+      .select("id, title, content, target_audience, is_published, created_at")
+      .eq("is_published", true)
       .order("created_at", { ascending: false });
 
+    // Filter by audience role — use DB lowercase enum values
+    if (filters?.role === "teacher") {
+      query = query.in("target_audience", ["all", "teachers"]);
+    } else if (filters?.role === "student") {
+      query = query.in("target_audience", ["all", "students"]);
+    }
+
+    const { data, error } = await query;
     if (error || !data) return [];
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -101,16 +131,16 @@ export async function fetchAnnouncements(filters?: {
       id: a.id,
       title: a.title,
       content: a.content,
-      author: a.author || "School Administration",
-      authorRole: a.author_role || "Administrator",
+      author: "School Administration",
+      authorRole: "Administrator",
       date: new Date(a.created_at || Date.now()).toLocaleDateString("en-GB", {
         day: "2-digit",
         month: "short",
         year: "numeric",
       }),
-      targetAudience: a.target_audience as TargetAudience,
-      targetClassId: a.target_class_id,
-      status: a.status as AnnouncementStatus,
+      targetAudience: (DB_TO_AUDIENCE[a.target_audience] || "Entire School") as TargetAudience,
+      targetClassId: undefined,
+      status: "published" as AnnouncementStatus,
     }));
   } catch {
     return [];
@@ -127,15 +157,30 @@ export async function createAnnouncement(
 
   const supabase = createBrowserClient();
   try {
+    // Get school_id from the current user's profile — required by RLS
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Authentication required." };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: profile } = await (supabase.from("profiles") as any)
+      .select("school_id")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile?.school_id) return { success: false, error: "School context not found." };
+
+    // Only insert columns that exist in the DB:
+    // id, title, content, target_audience, is_published, school_id, author_id, created_at, updated_at
+    // Columns NOT in DB (omitted): status, author, author_role, target_class_id
+    // target_audience must be a DB enum value: 'all' | 'teachers' | 'students' | 'parents'
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase.from("announcements") as any).insert({
+      school_id: profile.school_id,
+      author_id: user.id,
       title: item.title,
       content: item.content,
-      author: item.author,
-      author_role: item.authorRole,
-      target_audience: item.targetAudience,
-      target_class_id: item.targetClassId || null,
-      status: item.status,
+      target_audience: AUDIENCE_TO_DB[item.targetAudience] || "all",
+      is_published: item.status === "published",
     });
 
     if (error) return { success: false, error: error.message };
