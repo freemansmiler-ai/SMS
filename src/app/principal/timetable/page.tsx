@@ -39,7 +39,7 @@ export default function PrincipalTimetablePage() {
             <span>Master School Timetable Overview</span>
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Headmaster executive master timetable schedule across all basic & SHS class divisions.
+            Headmaster timetable schedule across all basic & SHS class divisions.
           </p>
         </div>
 

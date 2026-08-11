@@ -384,7 +384,7 @@ function PrincipalStudentAnalyticsContent() {
             <CardContent className="p-4 pt-0 space-y-2.5">
               {analytics?.studentsRequiringAttention.length === 0 ? (
                 <p className="text-xs text-slate-500 py-2 text-center">
-                  No students currently require urgent academic intervention.
+                  No student currently require urgent academic intervention.
                 </p>
               ) : (
                 analytics?.studentsRequiringAttention.map((st) => (

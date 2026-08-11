@@ -162,8 +162,8 @@ export default function PrincipalProfilePage() {
             <CardContent className="p-4 pt-0 space-y-3 text-xs">
               <div className="p-3 rounded-md bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700 space-y-1">
                 <span className="text-[10px] font-bold text-slate-500 uppercase block">Institution Name</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200 text-sm">Achimota Basic School</span>
-                <span className="font-mono text-slate-500 block text-[11px]">School Code: ABS-2026</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200 text-sm">Codivex Tech. School</span>
+                <span className="font-mono text-slate-500 block text-[11px]">School Code: CodTech-2026</span>
               </div>
               <div className="p-3 rounded-md bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700 space-y-1">
                 <span className="text-[10px] font-bold text-slate-500 uppercase block">Authority Scope</span>
