@@ -59,8 +59,10 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
-  if (user) {
-    // Fetch profile role and account status from PostgreSQL profiles table
+  // Only fetch the profile when we actually need it — i.e. when the path is a
+  // protected route or the login page. For all other authenticated requests we
+  // skip the extra DB round trip entirely.
+  if (user && (isProtectedPath || isLoginPage)) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: profile } = await (supabase.from("profiles") as any)
       .select("role, is_active")

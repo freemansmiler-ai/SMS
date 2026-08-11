@@ -183,9 +183,21 @@ export async function fetchTeacherAuthorizedAssignments(): Promise<TeacherAuthor
     ];
   }
 
+  // Reuse identity when already available to avoid a redundant round trip.
+  // Callers that already have the identity should use fetchTeacherAssignmentsForIdentity directly.
   const identity = await fetchCurrentTeacherIdentity();
   if (!identity) return [];
 
+  return fetchTeacherAssignmentsForIdentity(identity);
+}
+
+/**
+ * Internal helper: fetches assignments given an already-resolved teacher identity.
+ * Avoids the extra auth + profiles + teachers round trip when identity is already known.
+ */
+async function fetchTeacherAssignmentsForIdentity(
+  identity: TeacherProfileInfo
+): Promise<TeacherAuthorizedAssignment[]> {
   const supabase = createBrowserClient();
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -263,7 +275,15 @@ export async function fetchAuthorizedClassRoster(
     ];
   }
 
-  const assignments = await fetchTeacherAuthorizedAssignments();
+  // Fetch identity and assignments in parallel — avoids the hidden sequential chain
+  // where fetchTeacherAuthorizedAssignments previously called fetchCurrentTeacherIdentity internally.
+  const [identity, assignments] = await Promise.all([
+    fetchCurrentTeacherIdentity(),
+    fetchTeacherAuthorizedAssignments(),
+  ]);
+
+  if (!identity) return [];
+
   const isAuthorized = assignments.some(
     (a) =>
       a.classId === classId &&
@@ -310,8 +330,89 @@ export async function fetchAuthorizedClassRoster(
 }
 
 export async function fetchTeacherDashboardData(): Promise<TeacherDashboardData> {
+  const config = getSupabaseEnvConfig();
+
+  // Run identity and assignments in parallel — previously they were sequential:
+  // fetchTeacherDashboardData called fetchCurrentTeacherIdentity, then
+  // fetchTeacherAuthorizedAssignments (which also called fetchCurrentTeacherIdentity internally)
+  // = 3 sequential auth+DB round trips. Now it's 1 parallel batch.
+  if (config.isPlaceholder || !config.isConfigured) {
+    const [identity, assignments] = await Promise.all([
+      fetchCurrentTeacherIdentity(),
+      fetchTeacherAuthorizedAssignments(),
+    ]);
+
+    const classMap = new Map<string, AssignedClassSummary>();
+    const subjectMap = new Map<string, AssignedSubjectSummary>();
+
+    assignments.forEach((a) => {
+      if (!classMap.has(a.classId)) {
+        classMap.set(a.classId, {
+          id: a.classId,
+          classId: a.classId,
+          name: a.className,
+          className: a.className,
+          gradeLevel: a.gradeLevel,
+          studentCount: 30,
+          subjectName: a.subjectName,
+          subjectNames: [a.subjectName],
+        });
+      } else {
+        const existing = classMap.get(a.classId)!;
+        if (!existing.subjectNames.includes(a.subjectName)) {
+          existing.subjectNames.push(a.subjectName);
+        }
+      }
+
+      if (!subjectMap.has(a.subjectId)) {
+        subjectMap.set(a.subjectId, {
+          id: a.subjectId,
+          subjectId: a.subjectId,
+          code: a.subjectCode,
+          subjectCode: a.subjectCode,
+          name: a.subjectName,
+          subjectName: a.subjectName,
+          className: a.className,
+          classNames: [a.className],
+          classCount: 1,
+          studentCount: 30,
+        });
+      } else {
+        const existing = subjectMap.get(a.subjectId)!;
+        if (!existing.classNames.includes(a.className)) {
+          existing.classNames.push(a.className);
+          existing.classCount++;
+        }
+      }
+    });
+
+    const classesSummary = Array.from(classMap.values());
+    const subjectsSummary = Array.from(subjectMap.values());
+    const totalStudents = classesSummary.reduce((acc, c) => acc + c.studentCount, 0);
+
+    return {
+      identity,
+      assignments,
+      metrics: {
+        totalSubjects: subjectMap.size,
+        totalClasses: classMap.size,
+        totalStudents,
+        attendanceSubmittedToday: false,
+        totalAssignedClasses: classMap.size,
+        totalAssignedSubjects: subjectMap.size,
+        totalStudentsTaught: totalStudents,
+      },
+      classesSummary,
+      subjectsSummary,
+      assignedClasses: classesSummary,
+      assignedSubjects: subjectsSummary,
+    };
+  }
+
+  // Real Supabase path: fetch identity first, then use it to fetch assignments
+  // without re-resolving auth — avoids the triple sequential round trip.
   const identity = await fetchCurrentTeacherIdentity();
-  const assignments = await fetchTeacherAuthorizedAssignments();
+  const assignments = identity ? await fetchTeacherAssignmentsForIdentity(identity) : [];
 
   const classMap = new Map<string, AssignedClassSummary>();
   const subjectMap = new Map<string, AssignedSubjectSummary>();
@@ -359,7 +460,6 @@ export async function fetchTeacherDashboardData(): Promise<TeacherDashboardData>
 
   const classesSummary = Array.from(classMap.values());
   const subjectsSummary = Array.from(subjectMap.values());
-
   const totalStudents = classesSummary.reduce((acc, c) => acc + c.studentCount, 0);
 
   return {

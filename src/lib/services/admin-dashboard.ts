@@ -58,7 +58,8 @@ export async function fetchAdminDashboardData() {
   const supabase = createBrowserClient();
 
   try {
-    // Execute real queries in parallel
+    // Execute all queries in parallel — the totalSubmittedCount is included here
+    // instead of being a separate sequential await after the block.
     const [
       studentsRes,
       teachersRes,
@@ -68,6 +69,7 @@ export async function fetchAdminDashboardData() {
       pendingResultsRes,
       recentUsersRes,
       recentAuditRes,
+      totalSubmittedRes,
     ] = await Promise.all([
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (supabase.from("students") as any).select("*", { count: "exact", head: true }),
@@ -85,6 +87,9 @@ export async function fetchAdminDashboardData() {
       (supabase.from("profiles") as any).select("id, first_name, last_name, email, role, created_at").order("created_at", { ascending: false }).limit(5),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (supabase.from("audit_logs") as any).select("id, action, entity_type, created_at").order("created_at", { ascending: false }).limit(5),
+      // Total results count — was previously a separate sequential await after Promise.all
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase.from("results") as any).select("*", { count: "exact", head: true }),
     ]);
 
     const metrics: AdminMetrics = {
@@ -113,10 +118,7 @@ export async function fetchAdminDashboardData() {
       timestamp: new Date(a.created_at).toLocaleTimeString(),
     }));
 
-    // Query total submitted results
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { count: totalSubmittedCount } = await (supabase.from("results") as any).select("*", { count: "exact", head: true });
-    const submitted = totalSubmittedCount ?? 0;
+    const submitted = totalSubmittedRes.count ?? 0;
     const totalResults = submitted + metrics.pendingResults;
     const rate = totalResults > 0 ? Number(((submitted / totalResults) * 100).toFixed(1)) : 0;
 

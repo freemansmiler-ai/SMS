@@ -119,10 +119,11 @@ export async function fetchPrincipalIdentity(): Promise<PrincipalIdentityInfo | 
 }
 
 export async function fetchPrincipalDashboardOverview(): Promise<PrincipalDashboardOverview> {
-  const identity = await fetchPrincipalIdentity();
-
   const config = getSupabaseEnvConfig();
-  if (config.isPlaceholder || !config.isConfigured || !identity) {
+
+  if (config.isPlaceholder || !config.isConfigured) {
+    // Fetch identity for mock path — still needed for the return value
+    const identity = await fetchPrincipalIdentity();
     return {
       identity: identity || {
         profileId: "prof-301",
@@ -170,53 +171,129 @@ export async function fetchPrincipalDashboardOverview(): Promise<PrincipalDashbo
 
   const supabase = createBrowserClient();
   try {
+    // Resolve identity inline — avoids the separate sequential fetchPrincipalIdentity call
+    // that previously caused a full extra auth + profiles round trip before any DB queries ran.
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return {
+        identity: null,
+        metrics: { totalStudents: 0, activeStudents: 0, totalTeachers: 0, activeTeachers: 0, totalClasses: 0, activeClasses: 0, totalSubjects: 0, assignedSubjectsCount: 0, unassignedSubjectsCount: 0, overallSchoolAverage: 0, overallPassRate: 0, attendanceRate: 0, pendingResultApprovals: 0 },
+        currentAcademicYear: "No Active Academic Year", currentTerm: "No Active Term",
+        classOccupancy: [], resultStatus: { draftCount: 0, submittedCount: 0, underReviewCount: 0, returnedCount: 0, approvedCount: 0, publishedCount: 0 },
+        attendanceSummary: { presentCount: 0, absentCount: 0, lateCount: 0, excusedCount: 0 },
+      };
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: profile } = await (supabase.from("profiles") as any)
+      .select("id, school_id, email, first_name, last_name, role, avatar_url, schools:school_id ( name, code )")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile || profile.role !== "principal") {
+      return {
+        identity: null,
+        metrics: { totalStudents: 0, activeStudents: 0, totalTeachers: 0, activeTeachers: 0, totalClasses: 0, activeClasses: 0, totalSubjects: 0, assignedSubjectsCount: 0, unassignedSubjectsCount: 0, overallSchoolAverage: 0, overallPassRate: 0, attendanceRate: 0, pendingResultApprovals: 0 },
+        currentAcademicYear: "No Active Academic Year", currentTerm: "No Active Term",
+        classOccupancy: [], resultStatus: { draftCount: 0, submittedCount: 0, underReviewCount: 0, returnedCount: 0, approvedCount: 0, publishedCount: 0 },
+        attendanceSummary: { presentCount: 0, absentCount: 0, lateCount: 0, excusedCount: 0 },
+      };
+    }
+
+    const identity: PrincipalIdentityInfo = {
+      profileId: profile.id,
+      schoolId: profile.school_id,
+      schoolName: profile.schools?.name || "Achimota Basic School",
+      schoolCode: profile.schools?.code || "SCH-01",
+      firstName: profile.first_name,
+      lastName: profile.last_name,
+      email: profile.email,
+      avatarUrl: profile.avatar_url,
+    };
+
     const schoolId = identity.schoolId;
 
-    // Parallel DB queries scoped strictly to Principal's school_id
+    // All queries run in parallel — server-side COUNT queries replace full-row fetches
+    // that were previously loading every row into JS memory just to call .filter().length.
     const [
-      studentsRes,
-      teachersRes,
+      totalStudentsRes,
+      activeStudentsRes,
+      totalTeachersRes,
+      activeTeachersRes,
       classesRes,
       subjectsRes,
       assignmentsRes,
       settingsRes,
-      resultsRes,
-      attendanceRes,
+      draftResultsRes,
+      submittedResultsRes,
+      underReviewResultsRes,
+      returnedResultsRes,
+      approvedResultsRes,
+      publishedResultsRes,
+      presentAttRes,
+      absentAttRes,
+      lateAttRes,
+      excusedAttRes,
     ] = await Promise.all([
+      // Student counts — server-side, no rows transferred
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (supabase.from("students") as any).select("id, status").eq("school_id", schoolId),
+      (supabase.from("students") as any).select("*", { count: "exact", head: true }).eq("school_id", schoolId),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (supabase.from("profiles") as any).select("id, is_active").eq("school_id", schoolId).eq("role", "teacher"),
+      (supabase.from("students") as any).select("*", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "active"),
+      // Teacher counts
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase.from("profiles") as any).select("*", { count: "exact", head: true }).eq("school_id", schoolId).eq("role", "teacher"),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase.from("profiles") as any).select("*", { count: "exact", head: true }).eq("school_id", schoolId).eq("role", "teacher").eq("is_active", true),
+      // Classes — still need rows to build classOccupancy breakdown
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (supabase.from("classes") as any)
         .select("id, name, grade_level, capacity, student_enrollments(id)")
         .eq("school_id", schoolId),
+      // Subject counts
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (supabase.from("subjects") as any).select("id, is_active").eq("school_id", schoolId),
+      (supabase.from("subjects") as any).select("*", { count: "exact", head: true }).eq("school_id", schoolId),
+      // Assignments — only subject_id needed for distinct count
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (supabase.from("teacher_assignments") as any).select("subject_id").eq("school_id", schoolId),
+      // School settings
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (supabase.from("school_settings") as any)
         .select("current_academic_year_id, current_term_id, academic_years:current_academic_year_id(name), terms:current_term_id(name)")
         .eq("school_id", schoolId)
         .maybeSingle(),
+      // Result status counts — server-side per status
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (supabase.from("results") as any).select("status").eq("school_id", schoolId),
+      (supabase.from("results") as any).select("*", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "draft"),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (supabase.from("attendance") as any).select("status").eq("school_id", schoolId),
+      (supabase.from("results") as any).select("*", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "submitted"),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase.from("results") as any).select("*", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "under_review"),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase.from("results") as any).select("*", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "returned"),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase.from("results") as any).select("*", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "approved"),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase.from("results") as any).select("*", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "published"),
+      // Attendance counts — server-side per status
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase.from("attendance") as any).select("*", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "present"),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase.from("attendance") as any).select("*", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "absent"),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase.from("attendance") as any).select("*", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "late"),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase.from("attendance") as any).select("*", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "excused"),
     ]);
 
-    // Compute Student counts
-    const totalStudents = studentsRes.data?.length || 0;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const activeStudents = studentsRes.data?.filter((s: any) => s.status === "active").length || 0;
+    // Counts
+    const totalStudents = totalStudentsRes.count ?? 0;
+    const activeStudents = activeStudentsRes.count ?? 0;
+    const totalTeachers = totalTeachersRes.count ?? 0;
+    const activeTeachers = activeTeachersRes.count ?? 0;
+    const totalSubjects = subjectsRes.count ?? 0;
 
-    // Compute Teacher counts
-    const totalTeachers = teachersRes.data?.length || 0;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const activeTeachers = teachersRes.data?.filter((t: any) => t.is_active !== false).length || 0;
-
-    // Compute Class Occupancy
+    // Class Occupancy
     const totalClasses = classesRes.data?.length || 0;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const classOccupancy: ClassOccupancyBreakdown[] = (classesRes.data || []).map((c: any) => {
@@ -232,31 +309,30 @@ export async function fetchPrincipalDashboardOverview(): Promise<PrincipalDashbo
       };
     });
 
-    // Compute Subject Assignment Breakdown
-    const totalSubjects = subjectsRes.data?.length || 0;
+    // Subject assignment breakdown
     const assignedSubjectIds = new Set((assignmentsRes.data || []).map((a: { subject_id: string }) => a.subject_id));
     const assignedSubjectsCount = assignedSubjectIds.size;
     const unassignedSubjectsCount = Math.max(0, totalSubjects - assignedSubjectsCount);
 
-    // Compute Result Status Summary
-    const resultsData = resultsRes.data || [];
+    // Result status summary — from server-side counts
     const resultStatus: ResultSubmissionStatusSummary = {
-      draftCount: resultsData.filter((r: { status: string }) => r.status === "draft").length,
-      submittedCount: resultsData.filter((r: { status: string }) => r.status === "submitted").length,
-      underReviewCount: resultsData.filter((r: { status: string }) => r.status === "under_review").length,
-      returnedCount: resultsData.filter((r: { status: string }) => r.status === "returned").length,
-      approvedCount: resultsData.filter((r: { status: string }) => r.status === "approved").length,
-      publishedCount: resultsData.filter((r: { status: string }) => r.status === "published").length,
+      draftCount: draftResultsRes.count ?? 0,
+      submittedCount: submittedResultsRes.count ?? 0,
+      underReviewCount: underReviewResultsRes.count ?? 0,
+      returnedCount: returnedResultsRes.count ?? 0,
+      approvedCount: approvedResultsRes.count ?? 0,
+      publishedCount: publishedResultsRes.count ?? 0,
     };
 
-    // Compute Attendance Summary
-    const attData = attendanceRes.data || [];
+    // Attendance summary — from server-side counts
     const attendanceSummary: AttendancePeriodSummary = {
-      presentCount: attData.filter((a: { status: string }) => a.status === "present").length,
-      absentCount: attData.filter((a: { status: string }) => a.status === "absent").length,
-      lateCount: attData.filter((a: { status: string }) => a.status === "late").length,
-      excusedCount: attData.filter((a: { status: string }) => a.status === "excused").length,
+      presentCount: presentAttRes.count ?? 0,
+      absentCount: absentAttRes.count ?? 0,
+      lateCount: lateAttRes.count ?? 0,
+      excusedCount: excusedAttRes.count ?? 0,
     };
+
+    const settingsData = settingsRes.data ?? settingsRes;
 
     return {
       identity,
@@ -275,29 +351,20 @@ export async function fetchPrincipalDashboardOverview(): Promise<PrincipalDashbo
         attendanceRate: 96.8,
         pendingResultApprovals: resultStatus.submittedCount + resultStatus.underReviewCount,
       },
-      currentAcademicYear: settingsRes?.academic_years?.name || "2026/2027 Academic Year",
-      currentTerm: settingsRes?.terms?.name || "Term 1",
+      currentAcademicYear: settingsData?.academic_years?.name || "2026/2027 Academic Year",
+      currentTerm: settingsData?.terms?.name || "Term 1",
       classOccupancy,
       resultStatus,
       attendanceSummary,
     };
   } catch {
     return {
-      identity,
+      identity: null,
       metrics: {
-        totalStudents: 0,
-        activeStudents: 0,
-        totalTeachers: 0,
-        activeTeachers: 0,
-        totalClasses: 0,
-        activeClasses: 0,
-        totalSubjects: 0,
-        assignedSubjectsCount: 0,
-        unassignedSubjectsCount: 0,
-        overallSchoolAverage: 0,
-        overallPassRate: 0,
-        attendanceRate: 0,
-        pendingResultApprovals: 0,
+        totalStudents: 0, activeStudents: 0, totalTeachers: 0, activeTeachers: 0,
+        totalClasses: 0, activeClasses: 0, totalSubjects: 0, assignedSubjectsCount: 0,
+        unassignedSubjectsCount: 0, overallSchoolAverage: 0, overallPassRate: 0,
+        attendanceRate: 0, pendingResultApprovals: 0,
       },
       currentAcademicYear: "No Active Academic Year",
       currentTerm: "No Active Term",

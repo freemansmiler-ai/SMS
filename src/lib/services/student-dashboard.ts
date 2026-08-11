@@ -130,13 +130,22 @@ export async function fetchStudentDashboardData(): Promise<StudentDashboardData>
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Authentication required");
 
-    // Fetch user profile and verify student role
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: profile } = await (supabase.from("profiles") as any)
-      .select("first_name, last_name, role, school_id, schools:school_id(name, code)")
-      .eq("id", user.id)
-      .single();
+    // Fetch profile and student record in parallel — previously these were two
+    // sequential awaits (getUser → profiles query → students query).
+    const [profileRes, studentRes] = await Promise.all([
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase.from("profiles") as any)
+        .select("first_name, last_name, role, school_id, schools:school_id(name, code)")
+        .eq("id", user.id)
+        .single(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase.from("students") as any)
+        .select("id, student_code, status")
+        .eq("profile_id", user.id)
+        .maybeSingle(),
+    ]);
 
+    const profile = profileRes.data;
     if (!profile || profile.role !== "student") {
       throw new Error("UNAUTHORIZED: Access restricted to authorized student accounts.");
     }
@@ -146,13 +155,7 @@ export async function fetchStudentDashboardData(): Promise<StudentDashboardData>
     const schoolName = profile.schools?.name || "Achimota Basic School";
     const schoolCode = profile.schools?.code || "SCH-01";
 
-    // Query student record linked to auth profile
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: studentRec } = await (supabase.from("students") as any)
-      .select("id, student_code, status")
-      .eq("profile_id", user.id)
-      .maybeSingle();
-
+    const studentRec = studentRes.data;
     if (!studentRec) {
       throw new Error("Student account record not found.");
     }
@@ -160,38 +163,51 @@ export async function fetchStudentDashboardData(): Promise<StudentDashboardData>
     const studentId = studentRec.id;
     const studentCode = studentRec.student_code || "GES-STU";
 
-    // Query current active enrollment
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: enrollment } = await (supabase.from("student_enrollments") as any)
-      .select("class_id, academic_year_id, classes:class_id(name, grade_level), academic_years:academic_year_id(name)")
-      .eq("student_id", studentId)
-      .eq("school_id", schoolId)
-      .maybeSingle();
+    // Run all remaining queries in parallel — enrollment, settings, results, and attendance
+    // all depend only on studentId/schoolId which are already resolved above.
+    const [enrollmentRes, settingsRes, resultsRes, attRes] = await Promise.all([
+      // Current active enrollment
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase.from("student_enrollments") as any)
+        .select("class_id, academic_year_id, classes:class_id(name, grade_level), academic_years:academic_year_id(name)")
+        .eq("student_id", studentId)
+        .eq("school_id", schoolId)
+        .eq("status", "enrolled")
+        .order("created_at", { ascending: false })
+        .limit(1),
+      // Active term from school_settings
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase.from("school_settings") as any)
+        .select("current_term_id, terms:current_term_id(name)")
+        .eq("school_id", schoolId)
+        .maybeSingle(),
+      // Published results only
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase.from("results") as any)
+        .select("id, subject_id, continuous_assessment_score, examination_score, total_score, grade, remarks, status, subjects:subject_id(code, name)")
+        .eq("student_id", studentId)
+        .eq("school_id", schoolId)
+        .eq("status", "published"),
+      // Attendance records
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase.from("attendance") as any)
+        .select("status")
+        .eq("student_id", studentId)
+        .eq("school_id", schoolId),
+    ]);
+
+    const enrollmentRows = enrollmentRes.data;
+    const enrollment = enrollmentRows && enrollmentRows.length > 0 ? enrollmentRows[0] : null;
 
     const hasActiveEnrollment = Boolean(enrollment);
     const className = enrollment?.classes?.name || "No active enrollment found.";
     const gradeLevel = enrollment?.classes?.grade_level || "—";
     const academicYear = enrollment?.academic_years?.name || "2026/2027 Academic Year";
 
-    // Query active term from school_settings
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: settings } = await (supabase.from("school_settings") as any)
-      .select("current_term_id, terms:current_term_id(name)")
-      .eq("school_id", schoolId)
-      .maybeSingle();
-
+    const settings = settingsRes.data ?? settingsRes;
     const currentTerm = settings?.terms?.name || "Term 1";
 
-    // Query ONLY published results for this student
-    // Excludes draft, returned, under_review, and unapproved results
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: resultsData } = await (supabase.from("results") as any)
-      .select("id, subject_id, continuous_assessment_score, examination_score, total_score, grade, remarks, status, subjects:subject_id(code, name)")
-      .eq("student_id", studentId)
-      .eq("school_id", schoolId)
-      .eq("status", "published");
-
-    const rawResults = resultsData || [];
+    const rawResults = resultsRes.data || [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const publishedResults: StudentPublishedResult[] = rawResults.map((r: any) => ({
       id: r.id,
@@ -207,14 +223,7 @@ export async function fetchStudentDashboardData(): Promise<StudentDashboardData>
     const scores = publishedResults.map((r) => r.totalScore);
     const overallAverage = scores.length > 0 ? Number((scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1)) : null;
 
-    // Query attendance records for this student
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: attData } = await (supabase.from("attendance") as any)
-      .select("status")
-      .eq("student_id", studentId)
-      .eq("school_id", schoolId);
-
-    const attRecords = attData || [];
+    const attRecords = attRes.data || [];
     const totalSessions = attRecords.length;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const presentCount = attRecords.filter((a: any) => a.status === "present").length;

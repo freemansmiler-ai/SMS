@@ -16,9 +16,12 @@ export interface SupabaseEnvConfig {
 
 export function getSupabaseEnvConfig(): SupabaseEnvConfig {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  // Always prefer the JWT anon key — the Supabase SSR client requires a valid JWT.
+  // NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is a non-JWT key and cannot authenticate
+  // requests or be used with createBrowserClient / createServerClient.
   const supabaseAnonKey =
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
     "";
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
