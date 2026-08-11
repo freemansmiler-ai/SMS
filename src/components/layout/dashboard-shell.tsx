@@ -106,7 +106,7 @@ const DashboardShellInner: React.FC<DashboardShellProps> = ({
         {/* Reusable Dashboard Shell Footer */}
         <footer className="border-t border-slate-200/80 bg-white/50 px-6 py-3 text-center text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-400">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-2 max-w-7xl mx-auto text-[11px]">
-            <p>© 2026 Apex Academy School Management System. All rights reserved.</p>
+            <p>© 2026 Codivex Academy School Management System. All rights reserved.</p>
             <p className="flex items-center gap-1.5 text-[10px]">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
               Protected Shell Architecture (Supabase Auth Enabled)

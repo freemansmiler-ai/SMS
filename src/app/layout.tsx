@@ -3,9 +3,9 @@ import { AuthProvider } from "@/context/auth-context";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Apex Academy | School Management System",
+  title: "Codivex Academy | School Management System",
   description:
-    "Enterprise School Management System Foundation built with Next.js, TypeScript, Tailwind CSS, shadcn/ui, and Supabase.",
+    "Codivex Technologies School Management System Foundation built with Next.js, TypeScript, Tailwind CSS, shadcn/ui, and Supabase.",
 };
 
 export default function RootLayout({

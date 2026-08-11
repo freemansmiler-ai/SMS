@@ -1,6 +1,6 @@
-# Apex Academy SMS - Production Deployment Guide
+# Codivex Academy SMS - Production Deployment Guide
 
-This guide details the step-by-step procedure for deploying the **Apex Academy School Management System** to production using **Vercel** (or Netlify/Cloudflare) and **Supabase**.
+This guide details the step-by-step procedure for deploying the **Codivex Academy School Management System** to production using **Vercel** (or Netlify/Cloudflare) and **Supabase**.
 
 ---
 

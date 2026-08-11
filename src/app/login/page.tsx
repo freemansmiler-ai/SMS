@@ -74,10 +74,10 @@ export default function LoginPage() {
             <School className="h-6 w-6" />
           </div>
           <h1 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-slate-50">
-            Apex Academy Platform
+            Codivex Academy Platform
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Enterprise School Management System Portal
+            Codivex Academy School Management System Portal
           </p>
         </div>
 
@@ -86,7 +86,7 @@ export default function LoginPage() {
           <CardHeader className="p-6 pb-4">
             <CardTitle className="text-base font-semibold">Sign In to Your Account</CardTitle>
             <CardDescription className="text-xs">
-              Enter your Supabase credentials to access your dashboard.
+              Enter your credentials to access your Portal.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-6 pt-0 space-y-4">
@@ -107,7 +107,7 @@ export default function LoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@codivex.tech"
+                  placeholder="username@email.com"
                   className="h-9 text-xs"
                 />
               </div>
