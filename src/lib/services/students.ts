@@ -255,75 +255,17 @@ export async function createStudent(payload: CreateStudentPayload): Promise<{ su
     return { success: true, temporaryPassword: tempPassword };
   }
 
-  const supabase = createBrowserClient();
   try {
-    const authRes = await requireAuthorization(["administrator", "principal"]);
-    if (!authRes.authorized || !authRes.schoolId) {
-      return { success: false, error: authRes.error || "UNAUTHORIZED: Only an administrator can create student accounts." };
-    }
-    const schoolId = authRes.schoolId;
-
-    // 2. Duplicate student code check
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: existingStudent } = await (supabase.from("students") as any)
-      .select("id")
-      .eq("school_id", schoolId)
-      .eq("student_code", payload.studentCode)
-      .maybeSingle();
-
-    if (existingStudent) {
-      return { success: false, error: `Student code '${payload.studentCode}' is already registered in this school.` };
-    }
-
-    // 3. Create profile record
-    const profileId = crypto.randomUUID();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: profileErr } = await (supabase.from("profiles") as any).insert({
-      id: profileId,
-      school_id: schoolId,
-      email: payload.email,
-      first_name: payload.firstName,
-      last_name: payload.lastName,
-      role: "student",
-      avatar_url: payload.avatarUrl || null,
-      is_active: true,
+    const res = await fetch("/api/admin/students", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     });
 
-    if (profileErr) {
-      return { success: false, error: `Profile creation error: ${profileErr.message}` };
-    }
-
-    // 4. Insert student record
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: newStudent, error: studentErr } = await (supabase.from("students") as any)
-      .insert({
-        profile_id: profileId,
-        school_id: schoolId,
-        student_code: payload.studentCode,
-        date_of_birth: payload.dateOfBirth || null,
-        gender: payload.gender || "Male",
-        guardian_name: payload.guardianName || null,
-        guardian_contact: payload.guardianContact || null,
-        status: "active",
-      })
-      .select("id")
-      .single();
-
-    if (studentErr || !newStudent) {
-      return { success: false, error: `Student creation error: ${studentErr?.message}` };
-    }
-
-    // 5. Audit Logging (NEVER log passwords)
-    await recordAuditLog(
-      "STUDENT_CREATION",
-      "student",
-      newStudent.id,
-      `Administrator created student account for ${payload.firstName} ${payload.lastName} (${payload.studentCode})`
-    );
-
-    return { success: true, temporaryPassword: tempPassword };
+    const data = await res.json();
+    return data;
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Student registration failed.";
+    const msg = err instanceof Error ? err.message : "Failed to create student account.";
     return { success: false, error: msg };
   }
 }

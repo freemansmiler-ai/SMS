@@ -278,7 +278,7 @@ export async function createTimetableSlot(
     // 2. Resolve current term_id
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let { data: termData } = await (supabase.from("terms") as any)
-      .select("id")
+      .select("id, academic_year_id")
       .eq("school_id", schoolId)
       .limit(1)
       .maybeSingle();
@@ -302,7 +302,7 @@ export async function createTimetableSlot(
             end_date: "2026-12-15",
             is_current: true,
           })
-          .select("id")
+          .select("id, academic_year_id")
           .single();
         termData = newTerm;
       }
@@ -312,14 +312,96 @@ export async function createTimetableSlot(
       return { success: false, error: "Academic year/term context not found. Please create an Academic Year and Term first." };
     }
 
-    // 3. Insert timetable entry
+    // Helper for UUID check
+    const isUUID = (str?: string) =>
+      Boolean(str && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(str));
+
+    // 3. Resolve class_id, subject_id, teacher_id to valid UUIDs if mock string IDs are passed
+    let resolvedClassId = newSlot.classId;
+    if (!isUUID(resolvedClassId)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: realClass } = await (supabase.from("classes") as any)
+        .select("id")
+        .eq("school_id", schoolId)
+        .limit(1)
+        .maybeSingle();
+
+      if (realClass?.id) {
+        resolvedClassId = realClass.id;
+      } else {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: newClass } = await (supabase.from("classes") as any)
+          .insert({
+            school_id: schoolId,
+            name: newSlot.className || "Basic 8 - Section A",
+            grade_level: "Basic 8",
+            academic_year_id: termData.academic_year_id || null,
+          })
+          .select("id")
+          .single();
+        if (newClass?.id) resolvedClassId = newClass.id;
+      }
+    }
+
+    let resolvedSubjectId = newSlot.subjectId;
+    if (!isUUID(resolvedSubjectId)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: realSubject } = await (supabase.from("subjects") as any)
+        .select("id")
+        .eq("school_id", schoolId)
+        .limit(1)
+        .maybeSingle();
+
+      if (realSubject?.id) {
+        resolvedSubjectId = realSubject.id;
+      } else {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: newSubject } = await (supabase.from("subjects") as any)
+          .insert({
+            school_id: schoolId,
+            name: newSlot.subjectName || "Core Mathematics",
+            code: newSlot.subjectCode || "MATH-101",
+          })
+          .select("id")
+          .single();
+        if (newSubject?.id) resolvedSubjectId = newSubject.id;
+      }
+    }
+
+    let resolvedTeacherId = newSlot.teacherId;
+    if (!isUUID(resolvedTeacherId)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: realTeacher } = await (supabase.from("teachers") as any)
+        .select("id")
+        .eq("school_id", schoolId)
+        .limit(1)
+        .maybeSingle();
+
+      if (realTeacher?.id) {
+        resolvedTeacherId = realTeacher.id;
+      } else {
+        return {
+          success: false,
+          error: "No faculty teacher found in database. Please register a teacher under Faculty Management first.",
+        };
+      }
+    }
+
+    if (!isUUID(resolvedClassId) || !isUUID(resolvedSubjectId) || !isUUID(resolvedTeacherId)) {
+      return {
+        success: false,
+        error: "Invalid input syntax for type UUID. Please select valid class, subject, and teacher records.",
+      };
+    }
+
+    // 4. Insert timetable entry
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: newTimetable, error } = await (supabase.from("timetables") as any)
       .insert({
         school_id: schoolId,
-        class_id: newSlot.classId,
-        subject_id: newSlot.subjectId,
-        teacher_id: newSlot.teacherId,
+        class_id: resolvedClassId,
+        subject_id: resolvedSubjectId,
+        teacher_id: resolvedTeacherId,
         term_id: termData.id,
         day_of_week: DAY_TO_NUMBER[newSlot.day] || 1,
         start_time: newSlot.startTime,

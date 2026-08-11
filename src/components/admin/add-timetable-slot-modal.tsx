@@ -1,12 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   createTimetableSlot,
   WeekDay,
   DAYS_OF_WEEK,
   TIME_SLOTS,
 } from "@/lib/services/timetable";
+import { fetchClasses, ClassRecord } from "@/lib/services/classes";
+import { fetchSubjects, SubjectRecord } from "@/lib/services/subjects";
+import { fetchTeachers, TeacherRecord } from "@/lib/services/teachers";
 import {
   Dialog,
   DialogContent,
@@ -31,8 +34,13 @@ export const AddTimetableSlotModal: React.FC<AddTimetableSlotModalProps> = ({
   onOpenChange,
   onSuccess,
 }) => {
+  const [classes, setClasses] = useState<ClassRecord[]>([]);
+  const [subjects, setSubjects] = useState<SubjectRecord[]>([]);
+  const [teachers, setTeachers] = useState<TeacherRecord[]>([]);
+
   const [classId, setClassId] = useState("class-basic8a");
   const [className, setClassName] = useState("Basic 8 - Section A");
+
   const [subjectId, setSubjectId] = useState("subj-math101");
   const [subjectName, setSubjectName] = useState("Core Mathematics");
   const [subjectCode, setSubjectCode] = useState("MATH-101");
@@ -47,6 +55,43 @@ export const AddTimetableSlotModal: React.FC<AddTimetableSlotModalProps> = ({
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    async function loadDropdownData() {
+      try {
+        const [cList, sList, tList] = await Promise.all([
+          fetchClasses(),
+          fetchSubjects(),
+          fetchTeachers(),
+        ]);
+
+        if (cList && cList.length > 0) {
+          setClasses(cList);
+          setClassId(cList[0].id);
+          setClassName(cList[0].name);
+        }
+
+        if (sList && sList.length > 0) {
+          setSubjects(sList);
+          setSubjectId(sList[0].id);
+          setSubjectName(sList[0].name);
+          setSubjectCode(sList[0].code);
+        }
+
+        if (tList && tList.length > 0) {
+          setTeachers(tList);
+          setTeacherId(tList[0].id);
+          setTeacherName(`${tList[0].firstName} ${tList[0].lastName}`);
+        }
+      } catch (err) {
+        console.error("Failed to load timetable options:", err);
+      }
+    }
+
+    loadDropdownData();
+  }, [open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,15 +152,27 @@ export const AddTimetableSlotModal: React.FC<AddTimetableSlotModalProps> = ({
             <select
               value={classId}
               onChange={(e) => {
-                setClassId(e.target.value);
-                setClassName(e.target.options[e.target.selectedIndex].text);
+                const val = e.target.value;
+                setClassId(val);
+                const found = classes.find((c) => c.id === val);
+                setClassName(found ? found.name : e.target.options[e.target.selectedIndex].text);
               }}
               className="w-full h-8 rounded-md border border-slate-200 bg-white px-2 font-semibold text-xs dark:border-slate-800 dark:bg-slate-900"
             >
-              <option value="class-basic8a">Basic 8 - Section A</option>
-              <option value="class-basic9b">Basic 9 - Section B</option>
-              <option value="class-basic7a">Basic 7 - Section A</option>
-              <option value="class-shs1sci">SHS 1 Science</option>
+              {classes.length > 0 ? (
+                classes.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))
+              ) : (
+                <>
+                  <option value="class-basic8a">Basic 8 - Section A</option>
+                  <option value="class-basic9b">Basic 9 - Section B</option>
+                  <option value="class-basic7a">Basic 7 - Section A</option>
+                  <option value="class-shs1sci">SHS 1 Science</option>
+                </>
+              )}
             </select>
           </div>
 
@@ -127,11 +184,16 @@ export const AddTimetableSlotModal: React.FC<AddTimetableSlotModalProps> = ({
             <select
               value={subjectId}
               onChange={(e) => {
-                setSubjectId(e.target.value);
-                if (e.target.value === "subj-math101") {
+                const val = e.target.value;
+                setSubjectId(val);
+                const found = subjects.find((s) => s.id === val);
+                if (found) {
+                  setSubjectName(found.name);
+                  setSubjectCode(found.code);
+                } else if (val === "subj-math101") {
                   setSubjectName("Core Mathematics");
                   setSubjectCode("MATH-101");
-                } else if (e.target.value === "subj-sci101") {
+                } else if (val === "subj-sci101") {
                   setSubjectName("Integrated Science");
                   setSubjectCode("SCI-101");
                 } else {
@@ -141,9 +203,19 @@ export const AddTimetableSlotModal: React.FC<AddTimetableSlotModalProps> = ({
               }}
               className="w-full h-8 rounded-md border border-slate-200 bg-white px-2 font-semibold text-xs dark:border-slate-800 dark:bg-slate-900"
             >
-              <option value="subj-math101">MATH-101 (Core Mathematics)</option>
-              <option value="subj-sci101">SCI-101 (Integrated Science)</option>
-              <option value="subj-eng101">ENG-101 (Core English Language)</option>
+              {subjects.length > 0 ? (
+                subjects.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.code} ({s.name})
+                  </option>
+                ))
+              ) : (
+                <>
+                  <option value="subj-math101">MATH-101 (Core Mathematics)</option>
+                  <option value="subj-sci101">SCI-101 (Integrated Science)</option>
+                  <option value="subj-eng101">ENG-101 (Core English Language)</option>
+                </>
+              )}
             </select>
           </div>
 
@@ -155,15 +227,31 @@ export const AddTimetableSlotModal: React.FC<AddTimetableSlotModalProps> = ({
             <select
               value={teacherId}
               onChange={(e) => {
-                setTeacherId(e.target.value);
-                setTeacherName(e.target.options[e.target.selectedIndex].text);
+                const val = e.target.value;
+                setTeacherId(val);
+                const found = teachers.find((t) => t.id === val);
+                setTeacherName(
+                  found
+                    ? `${found.firstName} ${found.lastName}`
+                    : e.target.options[e.target.selectedIndex].text
+                );
               }}
               className="w-full h-8 rounded-md border border-slate-200 bg-white px-2 font-semibold text-xs dark:border-slate-800 dark:bg-slate-900"
             >
-              <option value="tch-201">Abena Appiah</option>
-              <option value="tch-202">Kofi Acheampong</option>
-              <option value="tch-203">Ama Osei</option>
-              <option value="tch-204">Yaw Boateng</option>
+              {teachers.length > 0 ? (
+                teachers.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.firstName} {t.lastName} ({t.employeeCode})
+                  </option>
+                ))
+              ) : (
+                <>
+                  <option value="tch-201">Abena Appiah</option>
+                  <option value="tch-202">Kofi Acheampong</option>
+                  <option value="tch-203">Ama Osei</option>
+                  <option value="tch-204">Yaw Boateng</option>
+                </>
+              )}
             </select>
           </div>
 

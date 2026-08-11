@@ -2,6 +2,7 @@ import { createBrowserClient, getSupabaseEnvConfig } from "@/lib/supabase";
 import { recordAuditLog } from "./audit-logs";
 import { requireAuthorization } from "./authorization";
 import { generateTemporaryPassword } from "./students";
+export { generateTemporaryPassword };
 
 export interface TeacherAssignmentRecord {
   id: string;
@@ -313,75 +314,17 @@ export async function createTeacher(payload: CreateTeacherPayload): Promise<{ su
     return { success: true, temporaryPassword: tempPassword };
   }
 
-  const supabase = createBrowserClient();
   try {
-    // 1. Check administrator authentication and school scoping
-    const authRes = await requireAuthorization(["administrator"]);
-    if (!authRes.authorized || !authRes.schoolId) {
-      return { success: false, error: authRes.error || "UNAUTHORIZED: Only an administrator can create teacher accounts." };
-    }
-    const schoolId = authRes.schoolId;
-
-    // 2. Duplicate employee code check
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: existingTeacher } = await (supabase.from("teachers") as any)
-      .select("id")
-      .eq("school_id", schoolId)
-      .eq("employee_code", payload.employeeCode)
-      .maybeSingle();
-
-    if (existingTeacher) {
-      return { success: false, error: `Employee code '${payload.employeeCode}' is already registered in this school.` };
-    }
-
-    // 3. Create profile
-    const profileId = crypto.randomUUID();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: profileErr } = await (supabase.from("profiles") as any).insert({
-      id: profileId,
-      school_id: schoolId,
-      email: payload.email,
-      first_name: payload.firstName,
-      last_name: payload.lastName,
-      role: "teacher",
-      phone: payload.phone || null,
-      avatar_url: payload.avatarUrl || null,
-      is_active: true,
+    const res = await fetch("/api/admin/teachers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     });
 
-    if (profileErr) {
-      return { success: false, error: `Profile creation error: ${profileErr.message}` };
-    }
-
-    // 4. Create teacher record
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: newTeacher, error: teacherErr } = await (supabase.from("teachers") as any)
-      .insert({
-        profile_id: profileId,
-        school_id: schoolId,
-        employee_code: payload.employeeCode,
-        department: payload.department || "General",
-        qualification: payload.qualification || null,
-        joining_date: payload.joiningDate || new Date().toISOString().split("T")[0],
-      })
-      .select("id")
-      .single();
-
-    if (teacherErr || !newTeacher) {
-      return { success: false, error: `Teacher registration error: ${teacherErr?.message}` };
-    }
-
-    // 5. Audit log (NEVER log passwords)
-    await recordAuditLog(
-      "TEACHER_CREATION",
-      "teacher",
-      newTeacher.id,
-      `Administrator created faculty account for ${payload.firstName} ${payload.lastName} (${payload.employeeCode})`
-    );
-
-    return { success: true, temporaryPassword: tempPassword };
+    const data = await res.json();
+    return data;
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Teacher creation failed";
+    const msg = err instanceof Error ? err.message : "Failed to create teacher account.";
     return { success: false, error: msg };
   }
 }

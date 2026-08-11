@@ -203,92 +203,16 @@ export async function createAdministratorAccount(
   }
 
   try {
-    const supabase = createBrowserClient();
-    const supabaseAdmin = createAdminClient();
-
-    // 1. Authenticate calling user & derive school_id from server profile
-    const { data: authData } = await supabase.auth.getUser();
-    if (!authData?.user) {
-      return { success: false, error: "Unauthorized operation." };
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: currentProfile } = await (supabase.from("profiles") as any)
-      .select("school_id, role")
-      .eq("id", authData.user.id)
-      .single();
-
-    if (!currentProfile || currentProfile.role !== "administrator") {
-      return { success: false, error: "SECURITY VIOLATION: Only administrators can provision administrator accounts." };
-    }
-
-    const schoolId = currentProfile.school_id;
-
-    // 2. Create User in Supabase Auth via Service Role Client
-    const { data: authUser, error: authErr } = await supabaseAdmin.auth.admin.createUser({
-      email: cleanEmail,
-      password: tempPassword,
-      email_confirm: true,
-      user_metadata: {
-        role: "administrator",
-        first_name: params.firstName,
-        last_name: params.lastName,
-        must_change_password: true,
-      },
+    const res = await fetch("/api/admin/administrators", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
     });
 
-    if (authErr) {
-      return { success: false, error: authErr.message };
-    }
-
-    const newUserId = authUser.user.id;
-
-    // 3. Create Profile record in PostgreSQL profiles table
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: profileRecord, error: profileErr } = await (supabaseAdmin.from("profiles") as any)
-      .insert({
-        id: newUserId,
-        school_id: schoolId,
-        email: cleanEmail,
-        first_name: params.firstName,
-        last_name: params.lastName,
-        role: "administrator",
-        phone: params.phone || null,
-        is_active: true,
-      })
-      .select("*")
-      .single();
-
-    if (profileErr) {
-      return { success: false, error: `Profile Creation Failed: ${profileErr.message}` };
-    }
-
-    // 4. Log Audit Event
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabaseAdmin.from("audit_logs") as any).insert({
-        school_id: schoolId,
-        user_id: authData.user.id,
-        user_role: "administrator",
-        action: "ADMINISTRATOR_CREATION",
-        entity: "profiles",
-        entity_id: newUserId,
-        details: {
-          email: cleanEmail,
-          created_by: authData.user.id,
-        },
-      });
-    } catch {
-      // Ignore audit logging errors
-    }
-
-    return {
-      success: true,
-      admin: profileRecord,
-      tempPassword,
-    };
+    const data = await res.json();
+    return data;
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Administrator creation failed.";
+    const msg = err instanceof Error ? err.message : "Failed to create administrator account.";
     return { success: false, error: msg };
   }
 }
