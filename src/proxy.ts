@@ -1,12 +1,12 @@
 import { type NextRequest } from "next/server";
-import { updateSession } from "@/lib/supabase/middleware";
+import { updateSession } from "@/lib/supabase/proxy";
 
 /**
- * Next.js Middleware entry point.
+ * Next.js Proxy entry point (renamed from `middleware` in Next.js 16).
  *
- * This file MUST be named `middleware.ts` and live at `src/middleware.ts`
+ * This file MUST be named `proxy.ts` and live at `src/proxy.ts`
  * (or the project root) for Next.js to pick it up. The logic lives in
- * `src/lib/supabase/middleware.ts` so it can be unit-tested independently.
+ * `src/lib/supabase/proxy.ts` so it can be unit-tested independently.
  *
  * What it does:
  *  1. Refreshes the Supabase session cookie on every request.
@@ -14,7 +14,7 @@ import { updateSession } from "@/lib/supabase/middleware";
  *  3. Enforces role-based access — an admin cannot visit /teacher just by
  *     changing the URL; they are redirected to their own dashboard.
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   return await updateSession(request);
 }
 

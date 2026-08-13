@@ -163,9 +163,9 @@ export async function fetchStudentDashboardData(): Promise<StudentDashboardData>
     const studentId = studentRec.id;
     const studentCode = studentRec.student_code || "GES-STU";
 
-    // Run all remaining queries in parallel — enrollment, settings, results, and attendance
+    // Run all remaining queries in parallel — enrollment, settings, results, attendance, and announcements
     // all depend only on studentId/schoolId which are already resolved above.
-    const [enrollmentRes, settingsRes, resultsRes, attRes] = await Promise.all([
+    const [enrollmentRes, settingsRes, resultsRes, attRes, announcementsRes] = await Promise.all([
       // Current active enrollment
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (supabase.from("student_enrollments") as any)
@@ -194,6 +194,15 @@ export async function fetchStudentDashboardData(): Promise<StudentDashboardData>
         .select("status")
         .eq("student_id", studentId)
         .eq("school_id", schoolId),
+      // Announcements targeting students or all — most recent 5
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase.from("announcements") as any)
+        .select("id, title, content, target_audience, created_at")
+        .eq("school_id", schoolId)
+        .eq("is_published", true)
+        .in("target_audience", ["all", "students"])
+        .order("created_at", { ascending: false })
+        .limit(5),
     ]);
 
     const enrollmentRows = enrollmentRes.data;
@@ -256,7 +265,13 @@ export async function fetchStudentDashboardData(): Promise<StudentDashboardData>
         attendanceRate,
       },
       publishedResults,
-      announcements: [],
+      announcements: (announcementsRes.data || []).map((a: any) => ({
+        id: a.id,
+        title: a.title,
+        date: new Date(a.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+        category: "administrative" as const,
+        content: a.content,
+      })),
       resultStatusNotice: publishedResults.length > 0 ? "Results available" : "No published results yet",
     };
   } catch (err: unknown) {

@@ -3,14 +3,14 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseEnvConfig } from "./config";
 
 /**
- * Next.js Server Middleware session & route protection handler.
+ * Next.js Server Proxy session & route protection handler.
  *
  * Performance strategy:
  *  - `supabase.auth.getUser()` is always called (required to refresh the session cookie).
  *  - The expensive `profiles` DB query is cached in a short-lived cookie (`x-role-cache`).
  *    On subsequent navigations the cookie is read directly — no extra DB round trip.
  *  - The cache is invalidated whenever the session user changes or the cookie is absent.
- *  - Static assets and Next.js internals are excluded by the middleware `matcher`.
+ *  - Static assets and Next.js internals are excluded by the proxy `matcher`.
  */
 
 const ROLE_CACHE_COOKIE = "x-role-cache";

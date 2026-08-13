@@ -181,10 +181,11 @@ export async function fetchStudentAssignedTeachers(
       };
     }
 
-    // Query teacher assignments for student's class.
-    // Only filter by academic_year / term when explicitly requested —
-    // otherwise show all teachers assigned to this class so students always
-    // see their teachers even when no year/term filter is active.
+    // Step 1: Get teacher assignments for the student's class.
+    // We do NOT attempt a 3-level nested join (assignments → teachers → profiles)
+    // because PostgREST only reliably supports one level of embedding per query.
+    // Instead we fetch assignment + teacher metadata in step 1, then resolve
+    // profile details (name, email, phone, avatar) in step 2.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let asgnQuery = (supabase.from("teacher_assignments") as any)
       .select(`
@@ -196,7 +197,7 @@ export async function fetchStudentAssignedTeachers(
           id,
           employee_code,
           department,
-          profiles:profile_id (first_name, last_name, email, phone, avatar_url)
+          profile_id
         ),
         subjects:subject_id (id, code, name),
         classes:class_id (name)
@@ -211,15 +212,37 @@ export async function fetchStudentAssignedTeachers(
     const { data: assignmentsData } = await asgnQuery;
     const assignments = assignmentsData || [];
 
-    // Group assigned subjects by teacher to prevent duplicates
+    // Step 2: Collect unique profile_ids from the assignments, then fetch profiles.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const profileIds = [...new Set(assignments.map((a: any) => a.teachers?.profile_id).filter(Boolean))];
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let profileMap = new Map<string, any>();
+    if (profileIds.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: profilesData } = await (supabase.from("profiles") as any)
+        .select("id, first_name, last_name, email, phone, avatar_url")
+        .in("id", profileIds);
+
+      if (profilesData) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        profilesData.forEach((p: any) => profileMap.set(p.id, p));
+      }
+    }
+
+    // Step 3: Merge assignments → teachers → profiles and group by teacher.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const teacherMap = new Map<string, any>();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     assignments.forEach((a: any) => {
       if (!a.teachers) return;
       const tid = a.teachers.id;
-      const tProf = a.teachers.profiles;
-      const tName = tProf ? `${tProf.first_name} ${tProf.last_name}` : "Faculty Teacher";
+      if (!tid) return;
+
+      const tProf = profileMap.get(a.teachers.profile_id);
+      const tName = tProf
+        ? `${tProf.first_name || ""} ${tProf.last_name || ""}`.trim()
+        : "Faculty Teacher";
       const sName = a.subjects?.name || "Subject";
 
       if (!teacherMap.has(tid)) {

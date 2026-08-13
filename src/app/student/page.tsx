@@ -35,6 +35,7 @@ import {
   User,
   ArrowRight,
   BookOpen,
+  Megaphone,
 } from "lucide-react";
 
 export default function StudentDashboardPage() {
@@ -380,6 +381,62 @@ export default function StudentDashboardPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* School Announcements */}
+        <Card className="border-slate-200/80 dark:border-slate-800">
+          <CardHeader className="p-4 pb-3 flex flex-row items-center justify-between space-y-0">
+            <div>
+              <CardTitle className="text-sm font-bold flex items-center gap-2">
+                <Megaphone className="h-4 w-4 text-slate-500" />
+                <span>School Notice Board</span>
+              </CardTitle>
+              <CardDescription className="text-xs mt-0.5">
+                Latest announcements addressed to students or the entire school.
+              </CardDescription>
+            </div>
+            <Link href="/student/announcements">
+              <Button variant="outline" size="sm" className="h-7 text-xs gap-1 shrink-0">
+                View All
+                <ArrowRight className="h-3 w-3" />
+              </Button>
+            </Link>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            {loading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-14 w-full" />
+                <Skeleton className="h-14 w-full" />
+              </div>
+            ) : !data?.announcements || data.announcements.length === 0 ? (
+              <div className="py-6 text-center text-xs text-slate-500">
+                No active notices on the student board at this time.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {data.announcements.map((ann) => (
+                  <div
+                    key={ann.id}
+                    className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="space-y-0.5 flex-1 min-w-0">
+                        <p className="font-semibold text-xs text-slate-900 dark:text-slate-100 truncate">
+                          {ann.title}
+                        </p>
+                        <p className="text-[11px] text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                          {ann.content}
+                        </p>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-medium shrink-0 mt-0.5">
+                        {ann.date}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </DashboardShell>
   );
