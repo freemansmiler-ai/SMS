@@ -397,7 +397,7 @@ export const OfficialReportCard: React.FC<OfficialReportCardProps> = ({ reportCa
             {/* Headmaster / Principal Signature */}
             <div style={{ textAlign: "center" }}>
               <div style={{ borderBottom: "1px solid #0f172a", paddingBottom: "4px", fontFamily: "serif", fontStyle: "italic", color: "#334155", fontSize: "14px", marginBottom: "32px" }}>
-                Rev. E. Mensah
+                Dr. Kpogli Freeman
               </div>
               <span style={{ fontSize: "10px", fontWeight: 700, color: "#475569", textTransform: "uppercase", display: "block" }}>
                 Headmaster / Principal Signature

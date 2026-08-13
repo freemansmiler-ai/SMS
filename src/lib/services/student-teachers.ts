@@ -149,14 +149,19 @@ export async function fetchStudentAssignedTeachers(
     const availableTerms = termsData || [{ id: "t-1", name: "Term 1" }];
     const availableSubjects = subData || [];
 
-    // Query historical/current enrollment for selected academic year
+    // Query most recent active enrollment for the student to determine their class.
+    // Order by created_at desc so the latest enrollment is used when multiple exist.
     let enrQuery = (supabase.from("student_enrollments") as any)
-      .select("class_id, classes:class_id(name)")
+      .select("class_id, academic_year_id, classes:class_id(name)")
       .eq("student_id", studentId)
-      .eq("school_id", schoolId);
+      .eq("school_id", schoolId)
+      .eq("status", "enrolled")
+      .order("created_at", { ascending: false })
+      .limit(1);
 
     if (filters?.academicYearId) enrQuery = enrQuery.eq("academic_year_id", filters.academicYearId);
-    const { data: enrData } = await enrQuery.maybeSingle();
+    const { data: enrRows } = await enrQuery;
+    const enrData = enrRows?.[0] ?? null;
 
     const classId = enrData?.class_id;
     const className = enrData?.classes?.name || "Basic Class";
@@ -176,7 +181,10 @@ export async function fetchStudentAssignedTeachers(
       };
     }
 
-    // Query teacher assignments for student's class & school
+    // Query teacher assignments for student's class.
+    // Only filter by academic_year / term when explicitly requested —
+    // otherwise show all teachers assigned to this class so students always
+    // see their teachers even when no year/term filter is active.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let asgnQuery = (supabase.from("teacher_assignments") as any)
       .select(`
@@ -188,7 +196,7 @@ export async function fetchStudentAssignedTeachers(
           id,
           employee_code,
           department,
-          profiles:profile_id (first_name, last_name, email, phone)
+          profiles:profile_id (first_name, last_name, email, phone, avatar_url)
         ),
         subjects:subject_id (id, code, name),
         classes:class_id (name)
@@ -224,6 +232,7 @@ export async function fetchStudentAssignedTeachers(
           subjects: [sName],
           email: tProf?.email || undefined,
           phone: tProf?.phone || undefined,
+          avatarUrl: tProf?.avatar_url || undefined,
           className: a.classes?.name || className,
           academicYearName: availableAcademicYears[0]?.name || "2026/2027 Academic Year",
           termName: availableTerms[0]?.name || "Term 1",

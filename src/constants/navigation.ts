@@ -140,6 +140,13 @@ export const NAVIGATION_BY_ROLE: Record<UserRole, NavSection[]> = {
           roles: ["administrator"],
         },
         {
+          title: "Announcements",
+          href: "/admin/announcements",
+          icon: "Megaphone",
+          badge: "Notice",
+          roles: ["administrator"],
+        },
+        {
           title: "System Settings",
           href: "#",
           icon: "Settings",
@@ -276,6 +283,13 @@ export const NAVIGATION_BY_ROLE: Record<UserRole, NavSection[]> = {
           href: "/teacher/results",
           icon: "Award",
           badge: "GES",
+          roles: ["teacher"],
+        },
+        {
+          title: "Announcements",
+          href: "/teacher/announcements",
+          icon: "Megaphone",
+          badge: "Notice",
           roles: ["teacher"],
         },
         {

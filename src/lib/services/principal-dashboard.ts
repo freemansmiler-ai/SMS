@@ -275,15 +275,15 @@ export async function fetchPrincipalDashboardOverview(): Promise<PrincipalDashbo
       (supabase.from("results") as any).select("*", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "approved"),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (supabase.from("results") as any).select("*", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "published"),
-      // Attendance counts — server-side per status
+      // Attendance counts — server-side per status, filtered to TODAY only
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (supabase.from("attendance") as any).select("*", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "present"),
+      (supabase.from("attendance") as any).select("*", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "present").eq("date", new Date().toISOString().split("T")[0]),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (supabase.from("attendance") as any).select("*", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "absent"),
+      (supabase.from("attendance") as any).select("*", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "absent").eq("date", new Date().toISOString().split("T")[0]),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (supabase.from("attendance") as any).select("*", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "late"),
+      (supabase.from("attendance") as any).select("*", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "late").eq("date", new Date().toISOString().split("T")[0]),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (supabase.from("attendance") as any).select("*", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "excused"),
+      (supabase.from("attendance") as any).select("*", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "excused").eq("date", new Date().toISOString().split("T")[0]),
     ]);
 
     // Counts

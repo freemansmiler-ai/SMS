@@ -13,14 +13,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { CreateAnnouncementModal } from "@/components/announcements/create-announcement-modal";
 import { Megaphone, UserPlus, BookPlus, ShieldCheck, Plus, Check } from "lucide-react";
 
 export const QuickActions: React.FC = () => {
   const { activeRole } = useRole();
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [announcementModalOpen, setAnnouncementModalOpen] = useState(false);
 
   const handleActionClick = (modalId: string) => {
+    if (modalId === "new_announcement") {
+      setAnnouncementModalOpen(true);
+      return;
+    }
     setSubmitted(false);
     setActiveModal(modalId);
   };
@@ -123,7 +129,6 @@ export const QuickActions: React.FC = () => {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-sm font-semibold">
-              {activeModal === "new_announcement" && "Broadcast School Announcement"}
               {activeModal === "register_user" && "Register New Profile Record"}
               {activeModal === "create_course" && "Create New Academic Subject"}
               {activeModal === "security_check" && "System RBAC Policy Status"}
@@ -183,6 +188,13 @@ export const QuickActions: React.FC = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Real Announcement Broadcast Modal */}
+      <CreateAnnouncementModal
+        open={announcementModalOpen}
+        onOpenChange={setAnnouncementModalOpen}
+        onSuccess={() => setAnnouncementModalOpen(false)}
+      />
     </>
   );
 };

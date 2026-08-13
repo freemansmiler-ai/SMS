@@ -317,34 +317,62 @@ export async function fetchSchoolWideAttendanceAnalytics(): Promise<SchoolAttend
   const supabase = createBrowserClient();
   try {
     const today = new Date().toISOString().split("T")[0];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (supabase.from("attendance") as any).select("status").eq("date", today);
 
-    const total = data?.length || 1;
+    // Fetch today's attendance records with class info
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const present = data?.filter((d: any) => d.status === "present").length || 0;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const absent = data?.filter((d: any) => d.status === "absent").length || 0;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const late = data?.filter((d: any) => d.status === "late").length || 0;
+    const { data } = await (supabase.from("attendance") as any)
+      .select("status, class_id, classes:class_id(name)")
+      .eq("date", today);
 
-    const rate = Number(((present / total) * 100).toFixed(1));
+    const records = data || [];
+    const total = records.length;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const present = records.filter((d: any) => d.status === "present").length;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const absent = records.filter((d: any) => d.status === "absent").length;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const late = records.filter((d: any) => d.status === "late").length;
+
+    const rate = total > 0 ? Number((((present + late) / total) * 100).toFixed(1)) : 0;
+
+    // Build per-class breakdown from today's records
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const classMap = new Map<string, { name: string; present: number; absent: number; total: number }>();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    records.forEach((r: any) => {
+      const cId = r.class_id;
+      if (!cId) return;
+      if (!classMap.has(cId)) {
+        classMap.set(cId, { name: r.classes?.name || cId, present: 0, absent: 0, total: 0 });
+      }
+      const entry = classMap.get(cId)!;
+      entry.total++;
+      if (r.status === "present" || r.status === "late") entry.present++;
+      if (r.status === "absent") entry.absent++;
+    });
+
+    const classBreakdown: ClassAttendanceStat[] = Array.from(classMap.entries()).map(([classId, c]) => ({
+      classId,
+      className: c.name,
+      enrolledStudents: c.total,
+      presentCount: c.present,
+      absentCount: c.absent,
+      rate: c.total > 0 ? Number(((c.present / c.total) * 100).toFixed(1)) : 0,
+    }));
 
     return {
-      overallAttendanceRate: rate > 0 ? rate : 96.8,
-      totalStudentsPresentToday: present || 1084,
-      totalStudentsAbsentToday: absent || 24,
-      totalStudentsLateToday: late || 12,
-      classBreakdown: [
-        { classId: "class-basic8a", className: "Basic 8 - Section A", enrolledStudents: 38, presentCount: 37, absentCount: 1, rate: 97.4 },
-      ],
+      overallAttendanceRate: rate,
+      totalStudentsPresentToday: present,
+      totalStudentsAbsentToday: absent,
+      totalStudentsLateToday: late,
+      classBreakdown,
     };
   } catch {
     return {
-      overallAttendanceRate: 96.8,
-      totalStudentsPresentToday: 1084,
-      totalStudentsAbsentToday: 24,
-      totalStudentsLateToday: 12,
+      overallAttendanceRate: 0,
+      totalStudentsPresentToday: 0,
+      totalStudentsAbsentToday: 0,
+      totalStudentsLateToday: 0,
       classBreakdown: [],
     };
   }

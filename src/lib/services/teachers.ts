@@ -344,6 +344,7 @@ export async function updateTeacher(id: string, payload: Partial<CreateTeacherPa
       await (supabase.from("profiles") as any).update({
         first_name: payload.firstName,
         last_name: payload.lastName,
+        email: payload.email,
         phone: payload.phone,
         avatar_url: payload.avatarUrl,
       }).eq("id", teacherData.profile_id);
