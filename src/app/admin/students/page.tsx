@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { StudentFormModal } from "@/components/admin/student-form-modal";
 import { DeactivateStudentDialog } from "@/components/admin/deactivate-student-dialog";
+import { BulkUploadModal } from "@/components/admin/bulk-upload-modal";
 import {
   UserPlus,
   Search,
@@ -44,6 +45,7 @@ import {
   UserX,
   GraduationCap,
   Filter,
+  Upload,
 } from "lucide-react";
 
 export default function StudentManagementPage() {
@@ -56,6 +58,7 @@ export default function StudentManagementPage() {
   const [isFormOpen, setIsFormOpen] = useState<boolean>(false);
   const [editingStudent, setEditingStudent] = useState<StudentRecord | null>(null);
   const [deactivatingStudent, setDeactivatingStudent] = useState<StudentRecord | null>(null);
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState<boolean>(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -112,10 +115,21 @@ export default function StudentManagementPage() {
             </p>
           </div>
 
-          <Button onClick={handleOpenAddModal} size="sm" className="gap-1.5 font-semibold shrink-0">
-            <UserPlus className="h-3.5 w-3.5" />
-            <span>Add Student</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+              onClick={() => setIsBulkUploadOpen(true)} 
+              variant="outline" 
+              size="sm" 
+              className="gap-1.5 font-semibold"
+            >
+              <Upload className="h-3.5 w-3.5" />
+              <span>Bulk Upload</span>
+            </Button>
+            <Button onClick={handleOpenAddModal} size="sm" className="gap-1.5 font-semibold shrink-0">
+              <UserPlus className="h-3.5 w-3.5" />
+              <span>Add Student</span>
+            </Button>
+          </div>
         </div>
 
         {/* Filters and Search Bar */}
@@ -298,6 +312,13 @@ export default function StudentManagementPage() {
         open={Boolean(deactivatingStudent)}
         onOpenChange={() => setDeactivatingStudent(null)}
         onDeactivated={loadData}
+      />
+
+      {/* Bulk Upload Students Modal */}
+      <BulkUploadModal
+        open={isBulkUploadOpen}
+        onOpenChange={setIsBulkUploadOpen}
+        onSuccess={loadData}
       />
     </DashboardShell>
   );

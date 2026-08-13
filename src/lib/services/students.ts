@@ -403,3 +403,221 @@ export async function uploadStudentPhoto(file: File): Promise<string | null> {
     return convertToDataUrl(file);
   }
 }
+
+/**
+ * Bulk upload students from CSV data
+ */
+export interface BulkUploadResult {
+  success: boolean;
+  totalProcessed: number;
+  successCount: number;
+  failedCount: number;
+  errors: Array<{
+    row: number;
+    email: string;
+    error: string;
+  }>;
+}
+
+export async function bulkUploadStudents(
+  csvData: Array<{
+    firstName: string;
+    lastName: string;
+    email: string;
+    dateOfBirth?: string;
+    gender?: string;
+    guardianName?: string;
+    guardianContact?: string;
+    classId?: string;
+    gradeLevel?: string;
+  }>
+): Promise<BulkUploadResult> {
+  const config = getSupabaseEnvConfig();
+  const result: BulkUploadResult = {
+    success: false,
+    totalProcessed: csvData.length,
+    successCount: 0,
+    failedCount: 0,
+    errors: []
+  };
+
+  // Mock mode fallback
+  if (config.isPlaceholder || !config.isConfigured) {
+    // Simulate processing with some mock validation
+    csvData.forEach((student, index) => {
+      // Basic email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(student.email)) {
+        result.errors.push({
+          row: index + 2, // +2 because index is 0-based and we skip header row
+          email: student.email,
+          error: "Invalid email format"
+        });
+        result.failedCount++;
+      } else {
+        result.successCount++;
+      }
+    });
+
+    result.success = result.failedCount === 0;
+    return result;
+  }
+
+  const supabase = createBrowserClient();
+
+  try {
+    // Get current user and school context
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error("Authentication required");
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: profile } = await (supabase.from("profiles") as any)
+      .select("school_id")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile?.school_id) {
+      throw new Error("School context not found");
+    }
+
+    // Get current academic year for enrollment
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: currentYear } = await (supabase.from("academic_years") as any)
+      .select("id")
+      .eq("school_id", profile.school_id)
+      .eq("is_current", true)
+      .single();
+
+    // Process each student
+    for (let i = 0; i < csvData.length; i++) {
+      const student = csvData[i];
+      const rowNumber = i + 2; // +2 for 1-based indexing and header row
+
+      try {
+        // Validate required fields
+        if (!student.firstName || !student.lastName || !student.email) {
+          throw new Error("First name, last name, and email are required");
+        }
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(student.email)) {
+          throw new Error("Invalid email format");
+        }
+
+        // Check if email already exists
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: existingProfile } = await (supabase.from("profiles") as any)
+          .select("id")
+          .eq("email", student.email)
+          .single();
+
+        if (existingProfile) {
+          throw new Error("Email already exists in system");
+        }
+
+        // Generate student code
+        const studentCode = `GES-${new Date().getFullYear()}-${Math.floor(Math.random() * 999).toString().padStart(3, '0')}`;
+
+        // Create auth user first
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: authUser, error: authError } = await (supabase.auth as any).admin.createUser({
+          email: student.email,
+          password: generateTemporaryPassword(),
+          email_confirm: true,
+          user_metadata: {
+            first_name: student.firstName,
+            last_name: student.lastName,
+            role: "student"
+          }
+        });
+
+        if (authError) {
+          throw new Error(`Failed to create user account: ${authError.message}`);
+        }
+
+        // Create profile
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: profileError } = await (supabase.from("profiles") as any).insert({
+          id: authUser.user.id,
+          school_id: profile.school_id,
+          email: student.email,
+          first_name: student.firstName,
+          last_name: student.lastName,
+          role: "student",
+          must_change_password: true
+        });
+
+        if (profileError) {
+          throw new Error(`Failed to create profile: ${profileError.message}`);
+        }
+
+        // Create student record
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: studentError } = await (supabase.from("students") as any).insert({
+          profile_id: authUser.user.id,
+          school_id: profile.school_id,
+          student_code: studentCode,
+          date_of_birth: student.dateOfBirth || null,
+          gender: student.gender || null,
+          guardian_name: student.guardianName || null,
+          guardian_contact: student.guardianContact || null,
+          status: "active"
+        });
+
+        if (studentError) {
+          throw new Error(`Failed to create student record: ${studentError.message}`);
+        }
+
+        // Create enrollment if class and academic year provided
+        if (student.classId && currentYear) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase.from("enrollments") as any).insert({
+            student_id: authUser.user.id,
+            class_id: student.classId,
+            academic_year_id: currentYear.id,
+            school_id: profile.school_id,
+            enrollment_date: new Date().toISOString().split('T')[0],
+            status: "active"
+          });
+        }
+
+        result.successCount++;
+
+      } catch (error) {
+        result.errors.push({
+          row: rowNumber,
+          email: student.email,
+          error: error instanceof Error ? error.message : "Unknown error"
+        });
+        result.failedCount++;
+      }
+    }
+
+    // Record audit log
+    await recordAuditLog(
+      "BULK_OPERATION",
+      "students",
+      "bulk_upload",
+      `Bulk uploaded ${result.successCount} students, ${result.failedCount} failed`
+    );
+
+    result.success = result.failedCount === 0;
+    return result;
+
+  } catch (error) {
+    return {
+      success: false,
+      totalProcessed: csvData.length,
+      successCount: 0,
+      failedCount: csvData.length,
+      errors: [{
+        row: 0,
+        email: "system",
+        error: error instanceof Error ? error.message : "System error during bulk upload"
+      }]
+    };
+  }
+}

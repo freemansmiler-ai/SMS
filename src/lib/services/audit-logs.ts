@@ -31,7 +31,8 @@ export type AuditLogAction =
   | "ENROLLMENT_WITHDRAWAL"
   | "TIMETABLE_CREATION"
   | "TIMETABLE_MODIFICATION"
-  | "TIMETABLE_DELETION";
+  | "TIMETABLE_DELETION"
+  | "BULK_OPERATION";
 
 export interface AuditLogEntry {
   id: string;
