@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import {
   fetchCurrentTeacherIdentity,

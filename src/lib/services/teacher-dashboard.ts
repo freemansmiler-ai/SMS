@@ -103,22 +103,30 @@ export async function fetchCurrentTeacherIdentity(): Promise<TeacherProfileInfo 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: profile } = await (supabase.from("profiles") as any)
-      .select("id, school_id, email, first_name, last_name, role, avatar_url")
-      .eq("id", user.id)
-      .single();
+    // Run profile and teacher record fetches in parallel after resolving the user ID.
+    // Previously these were sequential: auth → profile → teacher = 3 round trips.
+    // Now it's: auth → [profile + teacher] = 2 round trips.
+    const [profileRes, teacherRes] = await Promise.all([
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase.from("profiles") as any)
+        .select("id, school_id, email, first_name, last_name, role, avatar_url")
+        .eq("id", user.id)
+        .single(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase.from("teachers") as any)
+        .select("id, employee_code, department, qualification, school_id")
+        .eq("profile_id", user.id)
+        .maybeSingle(),
+    ]);
 
+    const profile = profileRes.data;
     if (!profile || profile.role !== "teacher") return null;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: teacher } = await (supabase.from("teachers") as any)
-      .select("id, employee_code, department, qualification")
-      .eq("profile_id", user.id)
-      .eq("school_id", profile.school_id)
-      .single();
-
+    const teacher = teacherRes.data;
     if (!teacher) return null;
+
+    // Extra guard: teacher must belong to the same school as the profile
+    if (teacher.school_id && teacher.school_id !== profile.school_id) return null;
 
     return {
       teacherId: teacher.id,
@@ -275,14 +283,14 @@ export async function fetchAuthorizedClassRoster(
     ];
   }
 
-  // Fetch identity and assignments in parallel — avoids the hidden sequential chain
-  // where fetchTeacherAuthorizedAssignments previously called fetchCurrentTeacherIdentity internally.
-  const [identity, assignments] = await Promise.all([
-    fetchCurrentTeacherIdentity(),
-    fetchTeacherAuthorizedAssignments(),
-  ]);
-
+  // Fetch identity once, then derive assignments from it — avoids the hidden
+  // double identity fetch that occurred when both were run in parallel:
+  // fetchTeacherAuthorizedAssignments internally calls fetchCurrentTeacherIdentity,
+  // so running them with Promise.all resulted in 2 concurrent identity fetches.
+  const identity = await fetchCurrentTeacherIdentity();
   if (!identity) return [];
+
+  const assignments = await fetchTeacherAssignmentsForIdentity(identity);
 
   const isAuthorized = assignments.some(
     (a) =>

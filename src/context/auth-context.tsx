@@ -28,6 +28,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [mustChangePassword, setMustChangePassword] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
+  // Tracks whether signIn() has already populated the profile so the
+  // SIGNED_IN auth state event doesn't fire a redundant second fetch.
+  const profileFetchedBySignIn = React.useRef(false);
 
   const fetchUserProfile = async (userId: string) => {
     try {
@@ -80,12 +83,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Listen to Auth State Changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
           const forcePass = Boolean(session.user.user_metadata?.must_change_password);
           setMustChangePassword(forcePass);
+
+          // If signIn() already fetched and set the profile (SIGNED_IN event fires
+          // immediately after signInWithPassword resolves), skip the redundant
+          // profile re-fetch to avoid a double round-trip on every login.
+          if (event === "SIGNED_IN" && profileFetchedBySignIn.current) {
+            profileFetchedBySignIn.current = false;
+            return;
+          }
+
           await fetchUserProfile(session.user.id);
         } else {
           setProfile(null);
@@ -171,6 +183,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         avatarUrl: profileData?.avatar_url ?? undefined,
         phone: profileData?.phone ?? undefined,
       });
+
+      // Signal the onAuthStateChange listener that the profile is already set
+      // so it skips the redundant fetchUserProfile call on the SIGNED_IN event.
+      profileFetchedBySignIn.current = true;
 
       return { success: true, role: userRole, mustChangePassword: forcePass };
     }
