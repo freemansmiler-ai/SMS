@@ -106,48 +106,74 @@ export async function fetchClassAttendance(
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return [];
 
+    // Step 1: Load ALL enrolled students for this class.
+    // This is the source of truth for who should appear in the roster.
+    // We do this regardless of whether attendance has been recorded yet.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let query = (supabase.from("attendance") as any)
+    let enrollmentQuery = (supabase.from("student_enrollments") as any)
       .select(`
-        id,
-        student_id,
-        class_id,
-        academic_year_id,
-        term_id,
-        date,
-        status,
-        remarks,
+        roll_number,
         students:student_id (
+          id,
           student_code,
-          profiles:profile_id (first_name, last_name)
+          profiles:profile_id ( first_name, last_name )
         ),
-        classes:class_id (name)
+        classes:class_id ( name )
       `)
+      .eq("class_id", classId)
+      .eq("status", "enrolled");
+
+    if (academicYearId) enrollmentQuery = enrollmentQuery.eq("academic_year_id", academicYearId);
+
+    const { data: enrollments, error: enrollError } = await enrollmentQuery;
+    if (enrollError || !enrollments || enrollments.length === 0) return [];
+
+    // Step 2: Fetch any existing attendance records for this class + date.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let attQuery = (supabase.from("attendance") as any)
+      .select("id, student_id, status, remarks, academic_year_id, term_id")
       .eq("class_id", classId)
       .eq("date", date);
 
-    if (academicYearId) query = query.eq("academic_year_id", academicYearId);
-    if (termId) query = query.eq("term_id", termId);
+    if (academicYearId) attQuery = attQuery.eq("academic_year_id", academicYearId);
+    if (termId) attQuery = attQuery.eq("term_id", termId);
 
-    const { data, error } = await query;
-    if (error || !data) return [];
+    const { data: existingRecords } = await attQuery;
 
+    // Build a lookup map: studentId → existing attendance row
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return data.map((item: any) => ({
-      id: item.id,
-      studentId: item.student_id,
-      studentName: item.students?.profiles
-        ? `${item.students.profiles.first_name} ${item.students.profiles.last_name}`
-        : "Student",
-      studentCode: item.students?.student_code || "GES-STU",
-      classId: item.class_id,
-      className: item.classes?.name || "Basic/Class",
-      academicYearId: item.academic_year_id,
-      termId: item.term_id,
-      date: item.date,
-      status: item.status || "present",
-      remarks: item.remarks || "",
-    }));
+    const attendanceMap = new Map<string, any>();
+    if (existingRecords) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      existingRecords.forEach((r: any) => attendanceMap.set(r.student_id, r));
+    }
+
+    // Step 3: Merge — every enrolled student appears in the roster.
+    // If they already have an attendance record for this date, use it.
+    // Otherwise default to "present" so the teacher just needs to mark exceptions.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return enrollments.map((e: any) => {
+      const student = e.students;
+      const studentId = student?.id || "";
+      const existing = attendanceMap.get(studentId);
+      const className = e.classes?.name || "Class";
+
+      return {
+        id: existing?.id || `new-${studentId}`,
+        studentId,
+        studentName: student?.profiles
+          ? `${student.profiles.first_name} ${student.profiles.last_name}`.trim()
+          : "Student",
+        studentCode: student?.student_code || "GES-STU",
+        classId,
+        className,
+        academicYearId: existing?.academic_year_id || academicYearId,
+        termId: existing?.term_id || termId,
+        date,
+        status: (existing?.status as AttendanceStatus) || "present",
+        remarks: existing?.remarks || "",
+      };
+    });
   } catch {
     return [];
   }

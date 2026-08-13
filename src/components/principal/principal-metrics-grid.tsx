@@ -45,7 +45,7 @@ export const PrincipalMetricsGrid: React.FC<PrincipalMetricsGridProps> = ({ metr
     {
       title: "Total Classes",
       value: metrics.totalClasses.toLocaleString(),
-      subtext: "Basic & SHS sections",
+      subtext: "Basic 1-9 sections",
       icon: BookOpen,
     },
     {

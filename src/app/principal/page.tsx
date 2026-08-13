@@ -7,6 +7,7 @@ import {
   fetchPrincipalDashboardOverview,
   PrincipalDashboardOverview,
 } from "@/lib/services/principal-dashboard";
+import { fetchAnnouncements, AnnouncementItem } from "@/lib/services/announcements";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -31,17 +32,23 @@ import {
   Award,
   CalendarCheck,
   ShieldCheck,
+  Megaphone,
 } from "lucide-react";
 
 export default function PrincipalDashboardPage() {
   const [overview, setOverview] = useState<PrincipalDashboardOverview | null>(null);
+  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     const loadDashboard = async () => {
       setLoading(true);
-      const data = await fetchPrincipalDashboardOverview();
-      setOverview(data);
+      const [overviewData, announcementData] = await Promise.all([
+        fetchPrincipalDashboardOverview(),
+        fetchAnnouncements({ role: "teacher" }), // Principal sees teacher and all announcements
+      ]);
+      setOverview(overviewData);
+      setAnnouncements(announcementData);
       setLoading(false);
     };
 
@@ -343,6 +350,58 @@ export default function PrincipalDashboardPage() {
                     })}
                   </TableBody>
                 </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Recent Announcements */}
+        <Card className="border-slate-200/80 dark:border-slate-800">
+          <CardHeader className="p-4 pb-3">
+            <CardTitle className="text-sm font-bold flex items-center gap-2">
+              <Megaphone className="h-4 w-4 text-slate-500" />
+              <span>Recent School Announcements</span>
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Latest official notices and school updates.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            {loading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-16 w-full" />
+                <Skeleton className="h-16 w-full" />
+              </div>
+            ) : announcements.length === 0 ? (
+              <div className="text-center py-4">
+                <p className="text-xs text-slate-500">No recent announcements available.</p>
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-64 overflow-y-auto">
+                {announcements.slice(0, 4).map((item) => (
+                  <div key={item.id} className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-md border border-slate-200/50 dark:border-slate-700/50">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="space-y-1 flex-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-semibold text-xs text-slate-900 dark:text-slate-100">
+                            {item.title}
+                          </h4>
+                          <Badge variant="outline" className="text-[9px] shrink-0">
+                            {item.targetAudience}
+                          </Badge>
+                        </div>
+                        <p className="text-[11px] text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                          {item.content}
+                        </p>
+                        <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                          <span className="font-semibold">{item.author}</span>
+                          <span>•</span>
+                          <span>{item.date}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>

@@ -167,10 +167,23 @@ export const AddTimetableSlotModal: React.FC<AddTimetableSlotModalProps> = ({
                 ))
               ) : (
                 <>
+                    <option value="Basic 7">Nursery 1</option>
+                  <option value="Basic 7">Nursery 2</option>
+                  <option value="Basic 7">K.G 1</option>
+                  <option value="Basic 7">K.G 2</option>
+                  <option value="Basic 7">Basic 1</option>
+                  <option value="Basic 7">Basic 2</option>
+                  <option value="Basic 7">Basic 3</option>
+                  <option value="Basic 7">Basic 4</option>
+                  <option value="Basic 7">Basic 5</option>
+                  <option value="Basic 7">Basic 6</option>
+                  <option value="Basic 7">Basic 7</option>
+                  <option value="Basic 8">Basic 8</option>
+                  <option value="Basic 9">Basic 9</option>
                   <option value="class-basic8a">Basic 8 - Section A</option>
                   <option value="class-basic9b">Basic 9 - Section B</option>
                   <option value="class-basic7a">Basic 7 - Section A</option>
-                  <option value="class-shs1sci">SHS 1 Science</option>
+                  <option value="class-basic9b">Basic 9 - Section B</option>
                 </>
               )}
             </select>

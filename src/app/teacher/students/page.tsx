@@ -63,7 +63,7 @@ export default function TeacherStudentsPage() {
               <span>Assigned Class Roster</span>
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              View students enrolled in your assigned Basic / SHS class sections.
+              View students enrolled in your assigned Basic/class.
             </p>
           </div>
         </div>

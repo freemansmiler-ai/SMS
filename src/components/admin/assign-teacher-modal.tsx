@@ -42,7 +42,7 @@ const DEFAULT_CLASSES = [
   { id: "class-basic8a", label: "Basic 8 - Section A" },
   { id: "class-basic8b", label: "Basic 8 - Section B" },
   { id: "class-basic9a", label: "Basic 9 - Section A" },
-  { id: "class-shs1sci", label: "SHS 1 Science" },
+  { id: "class-basic9b", label: "Basic 9 - Section B" },
 ];
 
 export const AssignTeacherModal: React.FC<AssignTeacherModalProps> = ({
@@ -210,7 +210,7 @@ export const AssignTeacherModal: React.FC<AssignTeacherModalProps> = ({
 
           <div className="space-y-1">
             <label className="font-semibold text-slate-700 dark:text-slate-300">
-              Select Class Section (Basic / SHS) *
+              Select Class Section (Basic 1-9) *
             </label>
             <select
               disabled={fetchingOptions}

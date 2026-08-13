@@ -56,7 +56,7 @@ export async function fetchAuditLogs(filters?: {
     const mockLogs: AuditLogEntry[] = [
       {
         id: "log-101",
-        userName: "Rev. Emmanuel Mensah",
+        userName: "Dr. kpogli Freeman",
         userRole: "Headmaster",
         action: "RESULT_APPROVAL",
         entity: "results",

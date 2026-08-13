@@ -147,10 +147,20 @@ export default function ClassManagementPage() {
                   className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold shadow-2xs dark:border-slate-800 dark:bg-slate-900 text-slate-800 dark:text-slate-200"
                 >
                   <option value="all">All Grades</option>
+                  <option value="Basic 7">Nursery 1</option>
+                  <option value="Basic 7">Nursery 2</option>
+                  <option value="Basic 7">K.G 1</option>
+                  <option value="Basic 7">K.G 2</option>
+                  <option value="Basic 7">Basic 1</option>
+                  <option value="Basic 7">Basic 2</option>
+                  <option value="Basic 7">Basic 3</option>
+                  <option value="Basic 7">Basic 4</option>
+                  <option value="Basic 7">Basic 5</option>
+                  <option value="Basic 7">Basic 6</option>
                   <option value="Basic 7">Basic 7</option>
                   <option value="Basic 8">Basic 8</option>
                   <option value="Basic 9">Basic 9</option>
-                  <option value="SHS 1">SHS 1</option>
+                 
                 </select>
               </div>
 

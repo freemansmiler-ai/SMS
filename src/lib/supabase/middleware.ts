@@ -69,8 +69,18 @@ export async function updateSession(request: NextRequest) {
       .eq("id", user.id)
       .maybeSingle();
 
-    const userRole = profile?.role || "administrator";
-    const isActive = profile?.is_active !== false;
+    // If the profile cannot be loaded, deny access to protected routes rather
+    // than granting a default high-privilege role.
+    if (!profile) {
+      await supabase.auth.signOut();
+      const loginUrl = request.nextUrl.clone();
+      loginUrl.pathname = "/login";
+      loginUrl.searchParams.set("error", "profile_not_found");
+      return NextResponse.redirect(loginUrl);
+    }
+
+    const userRole = profile.role as string;
+    const isActive = profile.is_active !== false;
 
     if (!isActive) {
       // Deactivated account - force logout and redirect to login with error
@@ -81,7 +91,7 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
 
-    if (isLoginPage) {
+    if (isLoginPage || pathname === "/dashboard") {
       const homeUrl = request.nextUrl.clone();
       homeUrl.pathname = `/${userRole}`;
       return NextResponse.redirect(homeUrl);

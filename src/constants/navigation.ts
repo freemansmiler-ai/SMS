@@ -35,7 +35,7 @@ export const MOCK_PROFILES: Record<UserRole, UserProfile> = {
   },
   principal: {
     id: "usr_principal_01",
-    name: "Rev. Emmanuel Mensah",
+    name: "Dr. kpogli Freeman",
     email: "headmaster@ghanaschools.edu.gh",
     role: "principal",
     phone: "+233 20 812 9988",

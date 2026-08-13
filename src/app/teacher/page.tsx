@@ -10,6 +10,7 @@ import {
   TeacherAuthorizedAssignment,
   ClassStudentRosterItem,
 } from "@/lib/services/teacher-dashboard";
+import { fetchAnnouncements, AnnouncementItem } from "@/lib/services/announcements";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -32,11 +33,13 @@ import {
   Users,
   ShieldCheck,
   UserCheck,
+  Megaphone,
 } from "lucide-react";
 
 export default function TeacherDashboardPage() {
   const [identity, setIdentity] = useState<TeacherProfileInfo | null>(null);
   const [assignments, setAssignments] = useState<TeacherAuthorizedAssignment[]>([]);
+  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   // Cascading Selection State
@@ -52,13 +55,15 @@ export default function TeacherDashboardPage() {
   useEffect(() => {
     const loadDashboard = async () => {
       setLoading(true);
-      const [idData, asgnData] = await Promise.all([
+      const [idData, asgnData, announcementData] = await Promise.all([
         fetchCurrentTeacherIdentity(),
         fetchTeacherAuthorizedAssignments(),
+        fetchAnnouncements({ role: "teacher" }),
       ]);
 
       setIdentity(idData);
       setAssignments(asgnData);
+      setAnnouncements(announcementData);
 
       if (asgnData.length > 0) {
         const first = asgnData[0];
@@ -248,6 +253,59 @@ export default function TeacherDashboardPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Recent Announcements */}
+        <Card className="border-slate-200/80 dark:border-slate-800">
+          <CardHeader className="p-4 pb-3">
+            <CardTitle className="text-sm font-bold flex items-center gap-2">
+              <Megaphone className="h-4 w-4 text-slate-500" />
+              <span>Recent Announcements</span>
+            </CardTitle>
+            <CardDescription className="text-xs">
+              School notices and updates for teachers.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            {loading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-16 w-full" />
+                <Skeleton className="h-16 w-full" />
+              </div>
+            ) : announcements.length === 0 ? (
+              <div className="text-center py-4">
+                <EmptyState
+                  title="No Announcements"
+                  description="No recent announcements available."
+                />
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {announcements.slice(0, 3).map((item) => (
+                  <div key={item.id} className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-md">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="space-y-1 flex-1">
+                        <h4 className="font-semibold text-xs text-slate-900 dark:text-slate-100">
+                          {item.title}
+                        </h4>
+                        <p className="text-[11px] text-slate-600 dark:text-slate-400 line-clamp-2">
+                          {item.content}
+                        </p>
+                        <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                          <span>{item.author}</span>
+                          <span>•</span>
+                          <span>{item.date}</span>
+                        </div>
+                      </div>
+                      <Badge variant="outline" className="text-[9px] shrink-0">
+                        {item.targetAudience}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Cascading Assignment Selector */}
         <Card className="border-slate-200/80 dark:border-slate-800">

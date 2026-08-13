@@ -20,7 +20,7 @@ export const SubjectPerformanceChart: React.FC<SubjectPerformanceChartProps> = (
           <span>GES Subject Pass Rates & Averages</span>
         </CardTitle>
         <CardDescription className="text-xs">
-          Curriculum subject score distribution across all Basic/SHS divisions.
+          Curriculum subject score distribution across all Basic 1-9 divisions.
         </CardDescription>
       </CardHeader>
       <CardContent className="p-4 pt-0 space-y-4">

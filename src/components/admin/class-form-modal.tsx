@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { ClassRecord, CreateClassPayload } from "@/lib/services/classes";
 import { fetchTeachers, TeacherRecord } from "@/lib/services/teachers";
+import { GRADE_LEVELS, DEPARTMENTS } from "@/constants/school";
 import {
   Dialog,
   DialogContent,
@@ -32,7 +33,7 @@ export const ClassFormModal: React.FC<ClassFormModalProps> = ({
   const isEditing = Boolean(classRecord);
 
   const [name, setName] = useState("");
-  const [gradeLevel, setGradeLevel] = useState("Basic 8");
+  const [gradeLevel, setGradeLevel] = useState("Basic 7");
   const [section, setSection] = useState("Section A");
   const [capacity, setCapacity] = useState<number>(35);
   const [classTeacherId, setClassTeacherId] = useState<string>("");
@@ -53,8 +54,8 @@ export const ClassFormModal: React.FC<ClassFormModalProps> = ({
       setCapacity(classRecord.capacity || 35);
       setClassTeacherId(classRecord.classTeacherId || "");
     } else {
-      setName("Basic 8 - Section A");
-      setGradeLevel("Basic 8");
+      setName("Basic 7 - Section A");
+      setGradeLevel("Basic 7");
       setSection("Section A");
       setCapacity(35);
       setClassTeacherId("");
@@ -138,14 +139,13 @@ export const ClassFormModal: React.FC<ClassFormModalProps> = ({
                 onChange={(e) => setGradeLevel(e.target.value)}
                 className="flex h-8 w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs shadow-2xs dark:border-slate-800 dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-medium"
               >
-                <option value="Early Grade">Early Grade</option>
-                <option value="Lower Primary">Lower Primary</option>
-                <option value="Upper Primary">Upper Primary</option>
-                <option value="Basic 7">Basic 7</option>
-                <option value="Basic 8">Basic 8</option>
-                <option value="Basic 9">Basic 9</option>
-                <option value="SHS 1">SHS 1</option>
-                <option value="SHS 2">SHS 2</option>
+                {DEPARTMENTS.map((dept) => (
+                  <optgroup key={dept.id} label={dept.label}>
+                    {GRADE_LEVELS.filter((g) => g.department === dept.id).map((g) => (
+                      <option key={g.value} value={g.value}>{g.label}</option>
+                    ))}
+                  </optgroup>
+                ))}
               </select>
             </div>
 

@@ -74,7 +74,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {!collapsed && (
               <div className="flex flex-col min-w-0">
                 <span className="font-bold text-xs tracking-tight text-slate-900 dark:text-white leading-tight truncate">
-                  Ghana Model School
+                  Codivex Academy
                 </span>
                 <span className="text-[10px] text-slate-400 font-medium truncate">
                   School Platform

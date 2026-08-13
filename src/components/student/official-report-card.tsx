@@ -166,7 +166,7 @@ export const OfficialReportCard: React.FC<OfficialReportCardProps> = ({ reportCa
             {/* School Title & Contacts */}
             <div style={{ textAlign: "center", flex: 1 }}>
               <h1 style={{ fontSize: "20px", fontWeight: 800, textTransform: "uppercase", color: "#0f172a", margin: 0 }}>
-                GHANA MODEL BASIC & SENIOR HIGH SCHOOL
+                GHANA MODEL PRIMARY & JUNIOR HIGH SCHOOL
               </h1>
               <p style={{ fontSize: "12px", fontWeight: 700, color: "#334155", margin: "4px 0" }}>
                 MINISTRY OF EDUCATION / GHANA EDUCATION SERVICE (GES)

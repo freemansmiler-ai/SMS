@@ -31,7 +31,7 @@ export const CreateAnnouncementModal: React.FC<CreateAnnouncementModalProps> = (
   open,
   onOpenChange,
   onSuccess,
-  authorName = "Rev. Emmanuel Mensah",
+  authorName = "Dr. kpogli Freeman",
   authorRole = "Headmaster",
 }) => {
   const [title, setTitle] = useState("");
@@ -124,34 +124,11 @@ export const CreateAnnouncementModal: React.FC<CreateAnnouncementModalProps> = (
               onChange={(e) => setTargetAudience(e.target.value as TargetAudience)}
               className="w-full h-8 rounded-md border border-slate-200 bg-white px-2 font-semibold text-xs dark:border-slate-800 dark:bg-slate-900"
             >
-              <option value="Entire School">Entire School (Faculty & Students)</option>
+              <option value="Entire School">All (Teachers & Students)</option>
               <option value="Teachers">Teachers Only</option>
               <option value="Students">Students Only</option>
-              <option value="Specific Classes">Specific Class Section</option>
             </select>
           </div>
-
-          {/* Conditional Specific Class Select */}
-          {targetAudience === "Specific Classes" && (
-            <div>
-              <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                Select Class Section:
-              </label>
-              <select
-                value={targetClassId}
-                onChange={(e) => {
-                  setTargetClassId(e.target.value);
-                  setTargetClassName(e.target.options[e.target.selectedIndex].text);
-                }}
-                className="w-full h-8 rounded-md border border-slate-200 bg-white px-2 font-semibold text-xs dark:border-slate-800 dark:bg-slate-900"
-              >
-                <option value="class-basic8a">Basic 8 - Section A</option>
-                <option value="class-basic9b">Basic 9 - Section B</option>
-                <option value="class-basic7a">Basic 7 - Section A</option>
-                <option value="class-shs1sci">SHS 1 Science</option>
-              </select>
-            </div>
-          )}
 
           {/* Notice Content */}
           <div>
